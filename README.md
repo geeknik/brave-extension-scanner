@@ -28,7 +28,7 @@ The extension consists of five core components:
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/brave-extension-scanner.git
+   git clone https://github.com/geeknik/brave-extension-scanner.git
    ```
 
 2. Open Brave browser and navigate to `brave://extensions`
