@@ -48,11 +48,26 @@ class ManifestAnalyzer {
    * @returns {Object} Analysis results
    */
   analyzeManifest(manifest) {
-    if (!manifest) {
+    // Input validation
+    if (!manifest || typeof manifest !== 'object') {
+      console.error('Invalid manifest: must be an object');
       return {
-        error: "Invalid manifest",
+        error: "Invalid manifest: must be an object",
         riskScore: 100
       };
+    }
+    
+    // Validate required fields
+    if (!manifest.name || typeof manifest.name !== 'string') {
+      console.warn('Manifest missing required field: name');
+    }
+    
+    if (!manifest.version || typeof manifest.version !== 'string') {
+      console.warn('Manifest missing required field: version');
+    }
+    
+    if (!manifest.manifest_version || typeof manifest.manifest_version !== 'number') {
+      console.warn('Manifest missing required field: manifest_version');
     }
     
     const results = {

@@ -605,7 +605,7 @@ describe('ManifestAnalyzer', () => {
     test('should handle invalid manifest', () => {
       const result = analyzer.analyzeManifest(null);
       
-      expect(result.error).toBe('Invalid manifest');
+      expect(result.error).toBe('Invalid manifest: must be an object');
       expect(result.riskScore).toBe(100);
     });
   });

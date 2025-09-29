@@ -3,6 +3,54 @@
  * Provides helper functions used throughout the extension
  */
 
+/**
+ * Sanitize error for safe logging (removes sensitive data)
+ * @param {Error|string} error - Error object or message
+ * @returns {Object} Sanitized error object
+ */
+function sanitizeError(error) {
+  if (!error) {
+    return { message: 'Unknown error', type: 'Error' };
+  }
+  
+  // If it's a string, return as-is (assumed to be safe)
+  if (typeof error === 'string') {
+    return { message: error, type: 'Error' };
+  }
+  
+  // Extract safe information from Error object
+  const sanitized = {
+    message: error.message || 'Unknown error',
+    type: error.constructor?.name || 'Error'
+  };
+  
+  // Remove potentially sensitive information from error messages
+  const sensitivePatterns = [
+    /chrome-extension:\/\/[a-z]+/gi,  // Extension IDs
+    /file:\/\/[^\s]+/gi,              // File paths
+    /\/Users\/[^\s]+/gi,              // User paths  
+    /\/home\/[^\s]+/gi,               // Linux paths
+    /C:\\Users\\[^\s]+/gi,            // Windows paths
+    /"id":"[a-z]+"/gi,                // Extension IDs in JSON
+  ];
+  
+  for (const pattern of sensitivePatterns) {
+    sanitized.message = sanitized.message.replace(pattern, '[REDACTED]');
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Log error safely without exposing sensitive information
+ * @param {string} context - Context where error occurred
+ * @param {Error|string} error - Error to log
+ */
+function logError(context, error) {
+  const sanitized = sanitizeError(error);
+  console.error(`[${context}]`, sanitized.type, ':', sanitized.message);
+}
+
 // Format a date for display
 function formatDate(date) {
   // If less than 24 hours ago, show relative time
@@ -315,6 +363,8 @@ function categorizePermission(permission) {
 
 // Export all functions
 export {
+  sanitizeError,
+  logError,
   formatDate,
   getThreatLevelClass,
   capitalizeFirst,

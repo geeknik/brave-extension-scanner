@@ -275,6 +275,31 @@ class StaticAnalyzer {
    * @returns {Object} Analysis results
    */
   analyzeCode(code) {
+    // Input validation
+    if (typeof code !== 'string') {
+      throw new TypeError('Code must be a string');
+    }
+    
+    if (code.length === 0) {
+      return {
+        evalUsage: [],
+        remoteCodeLoading: [],
+        cookieAccess: [],
+        dataExfiltration: [],
+        keylogging: [],
+        fingerprinting: [],
+        riskScore: 0,
+        suspiciousPatterns: []
+      };
+    }
+    
+    // Size limit: 10MB to prevent DoS
+    const MAX_CODE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (code.length > MAX_CODE_SIZE) {
+      console.warn(`Code size ${code.length} exceeds maximum ${MAX_CODE_SIZE} bytes`);
+      throw new Error(`Code exceeds maximum size of ${MAX_CODE_SIZE} bytes`);
+    }
+    
     // Initialize results
     const results = {
       evalUsage: [],

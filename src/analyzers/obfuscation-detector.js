@@ -65,14 +65,27 @@ class ObfuscationDetector {
    * @returns {Object} Analysis results
    */
   analyzeCode(code) {
+    // Input validation
+    if (typeof code !== 'string') {
+      throw new TypeError('Code must be a string');
+    }
+    
     // Skip empty code
     if (!code || code.trim().length === 0) {
       return {
         obfuscationDetected: false,
         obfuscationScore: 0,
         techniques: [],
-        entropy: 0
+        entropy: 0,
+        codeLength: 0
       };
+    }
+    
+    // Size limit: 10MB to prevent DoS
+    const MAX_CODE_SIZE = 10 * 1024 * 1024;
+    if (code.length > MAX_CODE_SIZE) {
+      console.warn(`Code size ${code.length} exceeds maximum ${MAX_CODE_SIZE} bytes`);
+      throw new Error(`Code exceeds maximum size of ${MAX_CODE_SIZE} bytes`);
     }
     
     // Calculate Shannon entropy
