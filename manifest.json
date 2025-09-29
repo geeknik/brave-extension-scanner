@@ -30,13 +30,5 @@
   },
   "content_security_policy": {
     "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "src/lib/*.js"
-      ],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

@@ -4,42 +4,132 @@ A security-focused browser extension that scans other extensions for malicious c
 
 ## Features
 
-- **Installation Interception**: Automatically scans extensions when they are installed
-- **Static Analysis**: Detects suspicious code patterns, dangerous API usage, and obfuscated code
+- **Post-Installation Scanning**: Automatically scans extensions immediately after they're installed
+- **Static Analysis**: Detects suspicious code patterns, dangerous API usage, and obfuscated code using AST parsing
 - **Permission Analysis**: Identifies extensions requesting excessive or dangerous permissions
+- **Obfuscation Detection**: Uses entropy analysis to detect code obfuscation and packing
 - **Network Analysis**: Detects suspicious network endpoints and data exfiltration attempts
 - **Threat Classification**: Provides clear risk assessments with actionable recommendations
+- **Auto-Protection**: Can automatically disable high-risk extensions
 - **Zero Telemetry**: All analysis happens locally - no data is sent to external servers
+
+## ⚠️ Important Limitations
+
+### Chrome Manifest V3 Restrictions
+
+Due to Chrome's Manifest V3 security architecture, this extension **cannot**:
+
+❌ **Block extensions before installation completes**  
+- Extensions are scanned **after** they're installed (Manifest V3 limitation)
+- We can alert and disable, but cannot prevent the initial installation
+- Think of this as "antivirus for extensions" rather than a firewall
+
+❌ **Access files from Chrome Web Store extensions**  
+- Can only analyze metadata and manifest information
+- Cannot read actual JavaScript code for Web Store extensions  
+- Full code analysis only works for unpacked/developer extensions
+
+❌ **Monitor all network requests globally**  
+- Limited to declarativeNetRequest API
+- Cannot intercept/modify extension network traffic in real-time
+
+### ✅ What This Extension CAN Do
+
+✅ **Scan extensions immediately after installation**  
+✅ **Fully analyze unpacked/developer extensions**  
+✅ **Detect dangerous permissions and suspicious patterns**  
+✅ **Alert you to potential threats with detailed reports**  
+✅ **Automatically disable malicious extensions**  
+✅ **Track scan history and provide actionable insights**
+
+### How It Works
+
+1. **Installation Detection**: When you install an extension, we detect it immediately via `chrome.management.onInstalled`
+2. **Post-Install Scanning**: We scan the extension's manifest and available metadata
+3. **Threat Assessment**: Multiple analyzers check for malicious patterns and dangerous configurations
+4. **User Alert**: If threats are found, you receive a notification with recommended actions
+5. **Auto-Protection**: High-risk extensions can be disabled automatically based on your settings
 
 ## Technical Architecture
 
-The extension consists of five core components:
+The extension consists of six core components:
 
-1. **Installation Interceptor**: Hooks into Brave's extension installation flow to capture and analyze extensions before installation completes
-2. **Static Analyzer**: Performs AST-based analysis of JavaScript code to detect malicious patterns with high accuracy
-3. **Manifest Analyzer**: Examines extension permissions and configurations to identify potential security risks
-4. **Obfuscation Detector**: Uses entropy analysis and pattern matching to detect code obfuscation techniques
-5. **Network Analyzer**: Identifies suspicious network endpoints and potential data exfiltration
-6. **Threat Classifier**: Combines analysis results to determine overall risk level and provide actionable recommendations
+1. **Installation Monitor**: Detects when extensions are installed via `chrome.management.onInstalled` API
+2. **Static Analyzer**: Performs AST-based analysis using acorn parser to detect malicious code patterns
+3. **Manifest Analyzer**: Examines permissions, content scripts, and CSP configurations for security risks
+4. **Obfuscation Detector**: Uses Shannon entropy analysis and pattern matching to detect code obfuscation
+5. **Network Analyzer**: Identifies suspicious endpoints, domains, and data exfiltration patterns
+6. **Threat Classifier**: Combines all analysis results using weighted scoring to determine threat level
+
+**Analysis Flow:**
+```
+Extension Installed → Monitor Detects → Fetch Manifest → Run Analyzers → 
+Classify Threat → Alert User → Auto-Disable (if configured)
+```
 
 ## Installation
 
-### Development Installation
+### For Users
 
-1. Clone this repository:
-   ```
-   git clone https://github.com/geeknik/brave-extension-scanner.git
-   ```
+1. Download from the Chrome Web Store (coming soon)
+2. Or install from source (see Developer Installation below)
+3. Grant requested permissions when prompted
+4. Configure security settings in the extension popup
 
-2. Open Brave browser and navigate to `brave://extensions`
+### For Developers
 
-3. Enable "Developer mode" in the top-right corner
+#### Prerequisites
+- Node.js 14+ and npm
+- Git
+- Brave or Chrome browser
 
-4. Click "Load unpacked" and select the extension directory
+#### Build from Source
 
-### Production Installation
+```bash
+# Clone the repository
+git clone https://github.com/geeknik/brave-extension-scanner.git
+cd brave-extension-scanner
 
-*Coming soon to the Chrome Web Store*
+# Install dependencies
+npm install
+
+# Run tests to verify everything works
+npm test
+
+# Build for production
+npm run build
+
+# Or build for development (with source maps)
+npm run build:dev
+
+# Or use watch mode (auto-rebuild on changes)
+npm run watch
+```
+
+#### Load in Brave/Chrome
+
+1. Open `brave://extensions` (or `chrome://extensions`)
+2. Enable "Developer mode" (toggle in top-right)
+3. Click "Load unpacked"
+4. Select the `dist/` directory from your build
+
+#### Testing
+
+We have comprehensive test coverage (87%) with test extensions for validation:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode (for development)
+npm run test:watch
+
+# Lint code
+npm run lint
+```
 
 ## Usage
 

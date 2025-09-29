@@ -5,33 +5,11 @@
 
 import StaticAnalyzer from '../../src/analyzers/static-analyzer.js';
 
-// Mock the acorn and acorn-walk modules
-jest.mock('../../src/lib/acorn.js', () => ({
-  parse: jest.fn((code) => {
-    // Return a simple AST-like structure for testing
-    return {
-      type: 'Program',
-      body: []
-    };
-  })
-}));
-
-jest.mock('../../src/lib/acorn-walk.js', () => ({
-  simple: jest.fn((ast, visitors) => {
-    // This is a simplified mock that doesn't actually walk the AST
-    // For more complex tests, we'll use the regex fallback path
-  })
-}));
-
 describe('StaticAnalyzer', () => {
   let analyzer;
 
   beforeEach(() => {
     analyzer = new StaticAnalyzer();
-    
-    // Reset mocks
-    require('../../src/lib/acorn.js').parse.mockClear();
-    require('../../src/lib/acorn-walk.js').simple.mockClear();
   });
 
   describe('detectPatterns', () => {

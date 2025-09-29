@@ -4,7 +4,7 @@
  * Uses AST-based analysis for more accurate detection
  */
 
-// Import acorn and acorn-walk from node_modules
+// Import real acorn and acorn-walk libraries (bundled by webpack)
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 

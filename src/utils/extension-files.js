@@ -3,16 +3,13 @@
  * Handles extraction and processing of extension files
  */
 
-// JSZip will be loaded via webpack or script tag
+// Import real JSZip library (bundled by webpack)
+import JSZip from 'jszip';
 
 // Extract ZIP files using JSZip
 async function extractZipFromArrayBuffer(zipData) {
   try {
     console.log('📦 Loading ZIP data with JSZip...');
-    // Use global JSZip if available, otherwise throw error
-    if (typeof JSZip === 'undefined') {
-      throw new Error('JSZip not available');
-    }
     const zip = await JSZip.loadAsync(zipData);
     console.log('✅ ZIP loaded successfully');
     return zip;
@@ -20,141 +17,6 @@ async function extractZipFromArrayBuffer(zipData) {
     console.error('❌ Error loading ZIP with JSZip:', error);
     throw new Error(`Failed to load ZIP: ${error.message}`);
   }
-}
-
-// Simulate ZIP extraction (for demonstration purposes)
-// In a real implementation, you would use JSZip or another library
-async function simulateZipExtraction(zipData) {
-  // This is a mock implementation that returns a simulated ZIP object
-  return {
-    files: {
-      'manifest.json': {
-        dir: false,
-        async: (type) => {
-          if (type === 'string') {
-            return JSON.stringify({
-              name: "Example Extension",
-              version: "1.0.0",
-              manifest_version: 2,
-              description: "An example extension",
-              permissions: ["storage", "tabs"],
-              content_scripts: [
-                {
-                  matches: ["<all_urls>"],
-                  js: ["content.js"]
-                }
-              ]
-            }, null, 2);
-          }
-          return new ArrayBuffer(0);
-        }
-      },
-      'background.js': {
-        dir: false,
-        async: (type) => {
-          if (type === 'string') {
-            return "// Background script\nconsole.log('Background script loaded');\n";
-          }
-          return new ArrayBuffer(0);
-        }
-      },
-      'content.js': {
-        dir: false,
-        async: (type) => {
-          if (type === 'string') {
-            return "// Content script\nconsole.log('Content script loaded');\n";
-          }
-          return new ArrayBuffer(0);
-        }
-      },
-      'popup.html': {
-        dir: false,
-        async: (type) => {
-          if (type === 'string') {
-            return "<!DOCTYPE html>\n<html>\n<head>\n  <title>Extension Popup</title>\n</head>\n<body>\n  <h1>Extension Popup</h1>\n</body>\n</html>";
-          }
-          return new ArrayBuffer(0);
-        }
-      },
-      'styles.css': {
-        dir: false,
-        async: (type) => {
-          if (type === 'string') {
-            return "body {\n  font-family: Arial, sans-serif;\n}\n";
-          }
-          return new ArrayBuffer(0);
-        }
-      }
-    },
-    forEach: (callback) => {
-      const files = [
-        'manifest.json',
-        'background.js',
-        'content.js',
-        'popup.html',
-        'styles.css'
-      ];
-      
-      for (const file of files) {
-        callback(file, {
-          dir: false,
-          async: (type) => {
-            if (type === 'string') {
-              if (file === 'manifest.json') {
-                return JSON.stringify({
-                  name: "Example Extension",
-                  version: "1.0.0",
-                  manifest_version: 2,
-                  description: "An example extension",
-                  permissions: ["storage", "tabs"],
-                  content_scripts: [
-                    {
-                      matches: ["<all_urls>"],
-                      js: ["content.js"]
-                    }
-                  ]
-                }, null, 2);
-              } else if (file === 'background.js') {
-                return "// Background script\nconsole.log('Background script loaded');\n";
-              } else if (file === 'content.js') {
-                return "// Content script\nconsole.log('Content script loaded');\n";
-              } else if (file === 'popup.html') {
-                return "<!DOCTYPE html>\n<html>\n<head>\n  <title>Extension Popup</title>\n</head>\n<body>\n  <h1>Extension Popup</h1>\n</body>\n</html>";
-              } else if (file === 'styles.css') {
-                return "body {\n  font-family: Arial, sans-serif;\n}\n";
-              }
-            }
-            return new ArrayBuffer(0);
-          }
-        });
-      }
-    },
-    file: (path) => {
-      if (path === 'manifest.json') {
-        return {
-          async: (type) => {
-            if (type === 'string') {
-              return JSON.stringify({
-                name: "Example Extension",
-                version: "1.0.0",
-                manifest_version: 2,
-                description: "An example extension",
-                permissions: ["storage", "tabs"],
-                content_scripts: [
-                  {
-                    matches: ["<all_urls>"],
-                    js: ["content.js"]
-                  }
-                ]
-              }, null, 2);
-            }
-            return new ArrayBuffer(0);
-          }
-        };
-      }
-      return null;
-    }
-  };
 }
 
 // Get files from an installed extension
@@ -347,8 +209,8 @@ async function getExtensionManifest(extensionId) {
             // Extract the ZIP data
             const zipData = crxData.slice(zipStartOffset);
             
-            // Use our simplified extraction method
-            const zip = await simulateZipExtraction(zipData);
+            // Extract using real JSZip library
+            const zip = await extractZipFromArrayBuffer(zipData);
             const manifestFile = zip.file('manifest.json');
             
             if (manifestFile) {
@@ -654,7 +516,6 @@ function detectFileType(filename, content) {
 // Export all functions
 export {
   extractZipFromArrayBuffer,
-  simulateZipExtraction,
   getExtensionFiles,
   getExtensionManifest,
   extractCrxFiles,
