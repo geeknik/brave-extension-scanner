@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 200px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #4caf50;
+            font-weight: bold;
+        }
+        
+        .status {
+            background: #e8f5e8;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .button {
+            width: 100%;
+            padding: 6px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        
+        .button:hover {
+            background: #45a049;
+        }
+        
+        .info {
+            font-size: 10px;
+            color: #666;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">Clean Extension</div>
+    
+    <div class="status">
+        ✓ Safe and Secure
+    </div>
+    
+    <button class="button" id="analyzeBtn">Analyze Page</button>
+    <button class="button" id="preferencesBtn">Preferences</button>
+    <button class="button" id="aboutBtn">About</button>
+    
+    <div class="info">
+        Version 1.0.0<br>
+        No tracking or data collection
+    </div>
+    
+    <script>
+        // Safe popup script
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('analyzeBtn').addEventListener('click', () => {
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    chrome.tabs.sendMessage(tabs[0].id, { action: 'getPageInfo' }, (response) => {
+                        if (response) {
+                            alert(`Page: ${response.title}\nURL: ${response.url}`);
+                        }
+                    });
+                });
+            });
+            
+            document.getElementById('preferencesBtn').addEventListener('click', () => {
+                chrome.runtime.sendMessage({ action: 'getExtensionInfo' }, (response) => {
+                    if (response) {
+                        alert(`Extension: ${response.name}\nVersion: ${response.version}\nFeatures: ${response.features.join(', ')}`);
+                    }
+                });
+            });
+            
+            document.getElementById('aboutBtn').addEventListener('click', () => {
+                alert('Clean Test Extension\n\nThis extension demonstrates safe, non-malicious functionality for testing the scanner.');
+            });
+        });
+    </script>
+</body>
+</html>

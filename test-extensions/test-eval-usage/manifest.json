@@ -1,0 +1,18 @@
+{
+  "name": "TEST: Eval Usage Extension",
+  "version": "1.0.0",
+  "description": "Test extension with various eval() usage patterns for scanner validation",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "TEST: Excessive Permissions Extension",
+  "version": "1.0.0",
+  "description": "Test extension requesting excessive permissions for scanner validation",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "history",
+    "bookmarks",
+    "cookies",
+    "storage",
+    "management",
+    "webRequest",
+    "webRequestBlocking",
+    "notifications",
+    "contextMenus",
+    "background",
+    "geolocation",
+    "desktopCapture",
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "optional_permissions": [
+    "privacy",
+    "proxy",
+    "system.cpu",
+    "system.memory",
+    "system.storage"
+  ]
+}

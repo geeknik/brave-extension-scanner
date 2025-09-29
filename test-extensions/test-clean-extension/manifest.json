@@ -1,0 +1,22 @@
+{
+  "name": "TEST: Clean Safe Extension",
+  "version": "1.0.0",
+  "description": "Test extension with no suspicious patterns - should be classified as safe",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://example.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Clean Extension"
+  }
+}

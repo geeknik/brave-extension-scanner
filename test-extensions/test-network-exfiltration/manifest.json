@@ -1,0 +1,30 @@
+{
+  "name": "TEST: Network Exfiltration Extension",
+  "version": "1.0.0",
+  "description": "Test extension with network data exfiltration patterns for scanner validation",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "history",
+    "bookmarks",
+    "cookies",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://suspicious-domain.com/*",
+    "https://data-collector.evil/*",
+    "https://analytics-tracker.bad/*",
+    "https://remote-endpoint.malicious/*",
+    "http://insecure-endpoint.test/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

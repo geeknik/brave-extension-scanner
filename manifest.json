@@ -1,0 +1,42 @@
+{
+  "name": "Brave Extension Scanner",
+  "version": "0.1.0",
+  "description": "Scans browser extensions for malicious code patterns, dangerous permissions, and obfuscated functionality",
+  "manifest_version": 3,
+  "permissions": [
+    "management",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://clients2.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/lib/*.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

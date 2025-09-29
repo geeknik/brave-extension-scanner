@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brave Extension Scanner</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Brave Extension Scanner</h1>
+      <div class="subtitle">Protecting your browser from malicious extensions</div>
+    </header>
+    
+    <div class="tabs">
+      <button class="tab-button active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-button" data-tab="scan">Scan</button>
+      <button class="tab-button" data-tab="history">History</button>
+      <button class="tab-button" data-tab="settings">Settings</button>
+    </div>
+    
+    <div class="tab-content">
+      <!-- Dashboard Tab -->
+      <div class="tab-pane active" id="dashboard">
+        <div class="status-card">
+          <div class="status-icon" id="protection-status-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1 13h2v2h-2v-2zm0-8h2v6h-2V7z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="status-info">
+            <h2>Protection Status</h2>
+            <p id="protection-status">Active</p>
+          </div>
+        </div>
+        
+        <div class="stats-container">
+          <div class="stat-card">
+            <h3>Extensions Scanned</h3>
+            <div class="stat-value" id="extensions-scanned">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Threats Detected</h3>
+            <div class="stat-value" id="threats-detected">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Last Scan</h3>
+            <div class="stat-value" id="last-scan">Never</div>
+          </div>
+        </div>
+        
+        <div class="recent-activity">
+          <h3>Recent Activity</h3>
+          <div class="activity-list" id="recent-activity-list">
+            <div class="empty-state">No recent activity</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Scan Tab -->
+      <div class="tab-pane" id="scan">
+        <div class="scan-options" id="scan-options">
+          <h3>Scan Options</h3>
+          <div class="option-group">
+            <label for="scan-type">Scan Type</label>
+            <select id="scan-type">
+              <option value="all">All Installed Extensions</option>
+              <option value="recent">Recently Installed</option>
+              <option value="single">Select Extension</option>
+            </select>
+          </div>
+          
+          <div class="extension-selector" id="extension-selector" style="display: none;">
+            <label for="extension-select">Select Extension</label>
+            <select id="extension-select">
+              <option value="">Loading extensions...</option>
+            </select>
+          </div>
+          
+          <div class="option-group">
+            <label for="scan-depth">Scan Depth</label>
+            <select id="scan-depth">
+              <option value="basic">Basic (Fast)</option>
+              <option value="thorough" selected>Thorough (Recommended)</option>
+              <option value="advanced">Advanced (Slow)</option>
+            </select>
+          </div>
+          
+          <button id="start-scan-button" class="primary-button">Start Scan</button>
+        </div>
+        
+        <div class="scan-progress" id="scan-progress" style="display: none;">
+          <h3>Scan in Progress</h3>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="scan-progress-bar"></div>
+          </div>
+          <div class="progress-status" id="scan-status">Initializing scan...</div>
+        </div>
+        
+        <div class="scan-results" id="scan-results" style="display: none;">
+          <h3>Scan Results</h3>
+          <div class="results-summary" id="results-summary"></div>
+          <div class="results-list" id="results-list"></div>
+        </div>
+      </div>
+      
+      <!-- History Tab -->
+      <div class="tab-pane" id="history">
+        <div class="history-filters">
+          <div class="filter-group">
+            <label for="history-filter">Filter</label>
+            <select id="history-filter">
+              <option value="all">All Scans</option>
+              <option value="threats">Threats Only</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="history-list" id="history-list">
+          <div class="empty-state">No scan history</div>
+        </div>
+      </div>
+      
+      <!-- Settings Tab -->
+      <div class="tab-pane" id="settings">
+        <div class="settings-group">
+          <h3>Scan Settings</h3>
+          
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="intercept-installations">Intercept New Installations</label>
+              <p class="setting-description">Automatically scan extensions when they are installed</p>
+            </div>
+            <div class="setting-control">
+              <label class="switch">
+                <input type="checkbox" id="intercept-installations" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="alert-threshold">Alert Threshold</label>
+              <p class="setting-description">When to show alerts for suspicious extensions</p>
+            </div>
+            <div class="setting-control">
+              <select id="alert-threshold">
+                <option value="low">Low (More Alerts)</option>
+                <option value="medium" selected>Medium (Recommended)</option>
+                <option value="high">High (Fewer Alerts)</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="auto-block">Auto-Block High Risk Extensions</label>
+              <p class="setting-description">Automatically disable extensions with critical risk</p>
+            </div>
+            <div class="setting-control">
+              <label class="switch">
+                <input type="checkbox" id="auto-block" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="settings-group">
+          <h3>About</h3>
+          <p>Brave Extension Scanner v0.1.0</p>
+          <p>This extension helps protect your browser from malicious extensions by scanning for suspicious code patterns, dangerous permissions, and obfuscated functionality.</p>
+          <p>All scanning happens locally on your device. No data is sent to external servers.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal for detailed reports -->
+  <div id="detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">Extension Analysis Report</div>
+        <button class="modal-close" id="close-modal">&times;</button>
+      </div>
+      <div class="modal-content" id="modal-content">
+        <!-- Content will be dynamically inserted here -->
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

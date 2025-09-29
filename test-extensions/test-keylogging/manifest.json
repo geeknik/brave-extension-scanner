@@ -1,0 +1,24 @@
+{
+  "name": "TEST: Keylogging Extension",
+  "version": "1.0.0",
+  "description": "Test extension with keylogging patterns for scanner validation",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["keylogger.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}
