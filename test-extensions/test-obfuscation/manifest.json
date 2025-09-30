@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "TEST: Obfuscation Detection",
+  "version": "1.0.0",
+  "description": "Test extension for advanced obfuscation detection",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["obfuscated.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

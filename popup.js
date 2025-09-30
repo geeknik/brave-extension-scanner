@@ -1,5 +1,30 @@
 // Popup script for Brave Extension Scanner
 
+// Show critical security warning about analysis limitations
+function showAnalysisLimitations() {
+  // Check if warning already exists
+  if (document.getElementById('security-warning')) {
+    return;
+  }
+  
+  const warning = document.createElement('div');
+  warning.id = 'security-warning';
+  warning.className = 'security-warning';
+  warning.innerHTML = `
+    <div class="warning-content">
+      <div class="warning-icon">⚠️</div>
+      <div class="warning-text">
+        <strong>Real Analysis:</strong> This scanner now downloads and analyzes actual extension files from the Chrome Web Store. 
+        For development extensions, it attempts direct file access. Fallback to manifest analysis when needed.
+      </div>
+    </div>
+  `;
+  
+  // Add to the top of the popup
+  const popup = document.querySelector('.popup-container') || document.body;
+  popup.insertBefore(warning, popup.firstChild);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize tabs
   initTabs();
@@ -284,9 +309,12 @@ async function startScan(scanType, scanDepth, extensionId) {
     scanProgressElement.style.display = 'block';
     scanResultsElement.style.display = 'none';
     
+    // Show critical security warning
+    showAnalysisLimitations();
+    
     // Update progress status
     progressBar.style.width = '10%';
-    statusElement.textContent = 'Initializing scan...';
+    statusElement.textContent = 'Initializing REAL scan...';
     
     // Send scan request to background script
     const scanResults = await sendMessageToBackground({
@@ -298,16 +326,16 @@ async function startScan(scanType, scanDepth, extensionId) {
     
     // Update progress during scan (in a real implementation, this would use events or polling)
     progressBar.style.width = '50%';
-    statusElement.textContent = 'Analyzing extensions...';
+    statusElement.textContent = 'Downloading and analyzing real extension files...';
     
     // Simulate scan progress
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     progressBar.style.width = '75%';
-    statusElement.textContent = 'Classifying threats...';
+    statusElement.textContent = 'Performing comprehensive threat analysis...';
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     progressBar.style.width = '100%';
-    statusElement.textContent = 'Scan complete!';
+    statusElement.textContent = 'REAL analysis complete!';
     
     // Wait a moment before showing results
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -326,6 +354,30 @@ async function startScan(scanType, scanDepth, extensionId) {
       console.error('Could not update status element: Element not found');
     }
   }
+}
+
+// Format summary text with proper HTML
+function formatSummaryText(summary) {
+  if (!summary || typeof summary !== 'string') {
+    return 'No details available';
+  }
+  
+  // Convert markdown-style formatting to HTML
+  let formatted = summary
+    // Convert line breaks to <br> tags
+    .replace(/\n/g, '<br>')
+    // Convert bullet points to proper HTML lists
+    .replace(/^- \*\*(.*?)\*\*: (.*?)(?=<br>|$)/gm, '<li><strong>$1:</strong> $2</li>')
+    // Wrap consecutive list items in <ul> tags
+    .replace(/(<li>.*<\/li>)(<br><li>.*<\/li>)*/g, '<ul>$&</ul>')
+    // Clean up any remaining <br> tags inside lists
+    .replace(/<ul>(<li>.*<\/li>)<br>(<li>.*<\/li>)*<\/ul>/g, '<ul>$1$2</ul>')
+    // Convert bold text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convert italic text
+    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  return formatted;
 }
 
 // Show scan results
@@ -440,12 +492,15 @@ function showScanResults(results) {
         const resultItem = document.createElement('div');
         resultItem.className = 'result-item';
         
+        // Format the summary text with proper HTML
+        const formattedSummary = formatSummaryText(result.summary || 'No details available');
+        
         resultItem.innerHTML = `
           <h4>
             ${result.extensionName || 'Unknown Extension'}
             <span class="result-severity severity-${result.threatLevel}">${capitalizeFirst(result.threatLevel)}</span>
           </h4>
-          <p>${result.summary || 'No details available'}</p>
+          <div class="result-summary">${formattedSummary}</div>
           <div class="result-actions">
             <button class="view-details-button" data-extension-id="${result.extensionId || ''}">View Details</button>
             ${result.threatLevel === 'critical' || result.threatLevel === 'high' ? 

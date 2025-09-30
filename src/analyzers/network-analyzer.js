@@ -23,6 +23,9 @@ class NetworkAnalyzer {
       'tinyurl.com',
       't.co',
       'is.gd',
+      'short.link',
+      'cutt.ly',
+      'rebrand.ly',
       
       // Temporary/disposable domains
       '.000webhost.',
@@ -30,6 +33,10 @@ class NetworkAnalyzer {
       '.herokuapp.com',
       '.glitch.me',
       '.repl.co',
+      '.netlify.app',
+      '.vercel.app',
+      '.github.io',
+      '.firebaseapp.com',
       
       // Known malicious patterns
       'pastebin.com',
@@ -37,6 +44,8 @@ class NetworkAnalyzer {
       'ghostbin.co',
       'hastebin.com',
       'rentry.co',
+      'dpaste.com',
+      'pastebin.ir',
       
       // Cryptocurrency related (often used in cryptojacking)
       'coin-hive.com',
@@ -45,25 +54,106 @@ class NetworkAnalyzer {
       'crypto-loot.com',
       'minero.cc',
       'ppoi.org',
-      'browsermine.com'
+      'browsermine.com',
+      'webmine.pro',
+      'cryptonight.wasm',
+      'monero-miner.com',
+      
+      // Command & Control servers
+      'c2.',
+      'command.',
+      'control.',
+      'botnet.',
+      'malware.',
+      'trojan.',
+      'backdoor.',
+      
+      // Data exfiltration services
+      'exfiltrator.',
+      'stealer.',
+      'keylogger.',
+      'spy.',
+      'harvester.',
+      'collector.',
+      
+      // Suspicious hosting providers
+      'noip.com',
+      'duckdns.org',
+      'freedns.afraid.org',
+      'dynu.com',
+      
+      // Tor and anonymity networks
+      '.onion',
+      'tor2web.org',
+      'torproject.org',
+      
+      // File sharing services (often used for payload delivery)
+      'dropbox.com',
+      'drive.google.com',
+      'onedrive.live.com',
+      'mega.nz',
+      'wetransfer.com',
+      
+      // Social media (can be used for C2)
+      'twitter.com',
+      'facebook.com',
+      'instagram.com',
+      'telegram.org',
+      'discord.com',
+      
+      // Email services (for data exfiltration)
+      'gmail.com',
+      'outlook.com',
+      'yahoo.com',
+      'protonmail.com'
     ];
     
     // Suspicious URL patterns
     this.suspiciousUrlPatterns = [
       // IP address URLs (suspicious in extensions)
       /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g,
+      /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/g,
       
       // Base64 in URLs
       /https?:\/\/[^/]*base64/g,
+      /https?:\/\/[^/]*[A-Za-z0-9+/]{20,}={0,2}/g,
       
-      // Unusual ports
-      /https?:\/\/[^/]*:[^0-9]*(2121|8118|6666|1337|31337)/g,
+      // Unusual ports (commonly used by malware)
+      /https?:\/\/[^/]*:(2121|8118|6666|1337|31337|4444|8080|8888|9999)/g,
       
       // Excessively long domain names (often algorithmically generated)
       /https?:\/\/[a-z0-9]{25,}\.[a-z]{2,}/g,
+      /https?:\/\/[a-z0-9-]{30,}\.[a-z]{2,}/g,
       
       // Uncommon TLDs often used in malicious campaigns
-      /https?:\/\/[^/]*\.(xyz|top|club|gq|tk|ml|ga|cf)/g
+      /https?:\/\/[^/]*\.(xyz|top|club|gq|tk|ml|ga|cf|click|download|exe|zip)/g,
+      
+      // Suspicious subdomain patterns
+      /https?:\/\/[a-z0-9-]*\.(c2|command|control|botnet|malware|trojan|backdoor)\.[a-z]{2,}/g,
+      
+      // Dynamic DNS services
+      /https?:\/\/[^/]*\.(no-ip|duckdns|freedns|dynu|myq-see|ddns)\.[a-z]{2,}/g,
+      
+      // Tor hidden services
+      /https?:\/\/[a-z2-7]{16,56}\.onion/g,
+      
+      // Suspicious file extensions in URLs
+      /https?:\/\/[^/]*\.(exe|scr|bat|cmd|com|pif|vbs|js|jar|php|asp|jsp)/g,
+      
+      // Encoded URLs (potential obfuscation)
+      /https?:\/\/[^/]*%[0-9A-Fa-f]{2}/g,
+      
+      // Suspicious query parameters
+      /https?:\/\/[^/]*\?[^&]*(cmd|exec|eval|shell|system|download|payload)/g,
+      
+      // Double encoding attempts
+      /https?:\/\/[^/]*%25[0-9A-Fa-f]{2}/g,
+      
+      // Suspicious path patterns
+      /https?:\/\/[^/]*\/(admin|wp-admin|phpmyadmin|backup|config|test|debug)/g,
+      
+      // UUID-like patterns (often used in malware)
+      /https?:\/\/[^/]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
     ];
     
     // Suspicious request patterns
@@ -258,7 +348,7 @@ class NetworkAnalyzer {
       return 'Uses IP address directly instead of domain name';
     } else if (patternStr.includes('base64')) {
       return 'Contains base64 in URL, possibly attempting to hide payload';
-    } else if (patternStr.includes(':[^0-9]*')) {
+    } else if (patternStr.includes('6666') || patternStr.includes('1337') || patternStr.includes('2121') || patternStr.includes('8118')) {
       return 'Uses suspicious port number often associated with malware';
     } else if (patternStr.includes('[a-z0-9]{25,}')) {
       return 'Unusually long domain name, possibly algorithmically generated';
@@ -344,6 +434,277 @@ class NetworkAnalyzer {
     score += requestPatterns.length * 5;
     
     return Math.min(100, score);
+  }
+  
+  /**
+   * Analyze network behavior patterns
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object} Network behavior analysis
+   */
+  analyzeNetworkBehavior(code) {
+    const behaviors = {
+      bulkRequests: this.detectBulkRequests(code),
+      stealthRequests: this.detectStealthRequests(code),
+      dataExfiltration: this.detectDataExfiltration(code),
+      c2Communication: this.detectC2Communication(code),
+      evasionTechniques: this.detectEvasionTechniques(code)
+    };
+    
+    return behaviors;
+  }
+  
+  /**
+   * Detect bulk request patterns (potential DDoS or data harvesting)
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object[]} Bulk request patterns found
+   */
+  detectBulkRequests(code) {
+    const patterns = [
+      // Loops with network requests
+      /for\s*\([^)]*\)\s*\{[^}]*fetch\s*\(/g,
+      /while\s*\([^)]*\)\s*\{[^}]*XMLHttpRequest/g,
+      /setInterval\s*\([^,]*,\s*\d+\)[^}]*fetch/g,
+      
+      // Array operations with requests
+      /\.forEach\s*\([^)]*fetch/g,
+      /\.map\s*\([^)]*XMLHttpRequest/g,
+      /\.filter\s*\([^)]*fetch/g
+    ];
+    
+    const matches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(code)) !== null) {
+        matches.push({
+          type: 'bulk_request',
+          match: match[0],
+          severity: 'high',
+          description: 'Potential bulk network requests detected'
+        });
+      }
+    });
+    
+    return matches;
+  }
+  
+  /**
+   * Detect stealth request patterns (attempts to hide network activity)
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object[]} Stealth request patterns found
+   */
+  detectStealthRequests(code) {
+    const patterns = [
+      // Random delays
+      /setTimeout\s*\([^,]*,\s*Math\.random/g,
+      /setInterval\s*\([^,]*,\s*Math\.random/g,
+      
+      // User agent spoofing
+      /headers\s*:\s*\{[^}]*User-Agent/g,
+      /setRequestHeader\s*\(\s*['"`]User-Agent['"`]/g,
+      
+      // Referrer manipulation
+      /referrer\s*:\s*['"`]/g,
+      /setRequestHeader\s*\(\s*['"`]Referer['"`]/g,
+      
+      // Request timing manipulation
+      /Date\.now\s*\(\s*\)/g,
+      /new\s+Date\s*\(\s*\)/g
+    ];
+    
+    const matches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(code)) !== null) {
+        matches.push({
+          type: 'stealth_request',
+          match: match[0],
+          severity: 'medium',
+          description: 'Stealth network request technique detected'
+        });
+      }
+    });
+    
+    return matches;
+  }
+  
+  /**
+   * Detect data exfiltration patterns
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object[]} Data exfiltration patterns found
+   */
+  detectDataExfiltration(code) {
+    const patterns = [
+      // Sensitive data in requests
+      /fetch\s*\([^)]*JSON\.stringify\s*\(/g,
+      /XMLHttpRequest[^}]*send\s*\([^)]*document\.cookie/g,
+      /fetch\s*\([^)]*localStorage/g,
+      /fetch\s*\([^)]*sessionStorage/g,
+      
+      // Form data exfiltration
+      /FormData\s*\([^)]*fetch/g,
+      /new\s+FormData[^}]*send/g,
+      
+      // File uploads
+      /input\s*\[.*type.*file.*\][^}]*fetch/g,
+      /\.files[^}]*FormData/g
+    ];
+    
+    const matches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(code)) !== null) {
+        matches.push({
+          type: 'data_exfiltration',
+          match: match[0],
+          severity: 'high',
+          description: 'Potential data exfiltration detected'
+        });
+      }
+    });
+    
+    return matches;
+  }
+  
+  /**
+   * Detect command and control communication patterns
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object[]} C2 communication patterns found
+   */
+  detectC2Communication(code) {
+    const patterns = [
+      // Heartbeat/beacon patterns
+      /setInterval\s*\([^,]*,\s*\d{4,}/g, // Long intervals
+      /fetch\s*\([^)]*ping/g,
+      /fetch\s*\([^)]*heartbeat/g,
+      /fetch\s*\([^)]*beacon/g,
+      
+      // Command execution patterns
+      /fetch\s*\([^)]*cmd/g,
+      /fetch\s*\([^)]*command/g,
+      /fetch\s*\([^)]*exec/g,
+      
+      // Status reporting
+      /fetch\s*\([^)]*status/g,
+      /fetch\s*\([^)]*report/g,
+      /fetch\s*\([^)]*update/g
+    ];
+    
+    const matches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(code)) !== null) {
+        matches.push({
+          type: 'c2_communication',
+          match: match[0],
+          severity: 'high',
+          description: 'Potential command and control communication detected'
+        });
+      }
+    });
+    
+    return matches;
+  }
+  
+  /**
+   * Detect network evasion techniques
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object[]} Evasion techniques found
+   */
+  detectEvasionTechniques(code) {
+    const patterns = [
+      // Proxy usage
+      /proxy\s*:/g,
+      /socks\s*:/g,
+      /tunnel\s*:/g,
+      
+      // Request modification
+      /headers\s*:\s*\{[^}]*X-/g,
+      /setRequestHeader\s*\(\s*['"`]X-/g,
+      
+      // Protocol switching
+      /ws:\/\//g,
+      /wss:\/\//g,
+      /ftp:\/\//g,
+      
+      // Domain generation algorithms
+      /Math\.random\s*\(\s*\)[^}]*\.com/g,
+      /Date\.now\s*\(\s*\)[^}]*\.org/g
+    ];
+    
+    const matches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(code)) !== null) {
+        matches.push({
+          type: 'evasion_technique',
+          match: match[0],
+          severity: 'medium',
+          description: 'Network evasion technique detected'
+        });
+      }
+    });
+    
+    return matches;
+  }
+  
+  /**
+   * Get comprehensive network analysis report
+   * @param {string} code - JavaScript code to analyze
+   * @returns {Object} Comprehensive network analysis
+   */
+  getComprehensiveAnalysis(code) {
+    const basicAnalysis = this.analyzeCode(code);
+    const behaviorAnalysis = this.analyzeNetworkBehavior(code);
+    
+    // Calculate enhanced risk score
+    let enhancedScore = basicAnalysis.riskScore;
+    
+    // Add behavior-based scoring
+    Object.values(behaviorAnalysis).forEach(behaviors => {
+      behaviors.forEach(behavior => {
+        if (behavior.severity === 'high') {
+          enhancedScore += 15;
+        } else if (behavior.severity === 'medium') {
+          enhancedScore += 10;
+        } else {
+          enhancedScore += 5;
+        }
+      });
+    });
+    
+    return {
+      ...basicAnalysis,
+      behaviorAnalysis,
+      enhancedRiskScore: Math.min(100, enhancedScore),
+      summary: this.generateNetworkSummary(basicAnalysis, behaviorAnalysis)
+    };
+  }
+  
+  /**
+   * Generate network analysis summary
+   * @param {Object} basicAnalysis - Basic network analysis results
+   * @param {Object} behaviorAnalysis - Behavior analysis results
+   * @returns {string} Summary text
+   */
+  generateNetworkSummary(basicAnalysis, behaviorAnalysis) {
+    const totalEndpoints = basicAnalysis.endpoints.total;
+    const suspiciousEndpoints = basicAnalysis.endpoints.suspicious.length;
+    const behaviorCount = Object.values(behaviorAnalysis).reduce((sum, behaviors) => sum + behaviors.length, 0);
+    
+    if (totalEndpoints === 0) {
+      return 'No network activity detected.';
+    }
+    
+    let summary = `Network analysis found ${totalEndpoints} endpoints`;
+    if (suspiciousEndpoints > 0) {
+      summary += `, ${suspiciousEndpoints} suspicious`;
+    }
+    if (behaviorCount > 0) {
+      summary += `, and ${behaviorCount} suspicious behaviors`;
+    }
+    summary += '.';
+    
+    return summary;
   }
 }
 

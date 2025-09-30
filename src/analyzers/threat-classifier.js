@@ -30,6 +30,18 @@ class ThreatClassifier {
       networkAbuse: {
         name: 'Network Abuse',
         description: 'The extension communicates with suspicious domains or uses unusual network patterns.'
+      },
+      advancedMalware: {
+        name: 'Advanced Malware',
+        description: 'The extension exhibits sophisticated malware behaviors such as cryptocurrency mining, form hijacking, or anti-debugging techniques.'
+      },
+      behavioralThreats: {
+        name: 'Behavioral Threats',
+        description: 'The extension shows suspicious behavioral patterns such as environment detection, stealth techniques, or unusual communication patterns.'
+      },
+      heuristicThreats: {
+        name: 'Heuristic Threats',
+        description: 'The extension exhibits multiple suspicious indicators that, when combined, suggest malicious intent based on behavioral analysis.'
       }
     };
   }
@@ -45,13 +57,15 @@ class ThreatClassifier {
     const staticScore = analysisResults.staticAnalysis?.riskScore || 0;
     const obfuscationScore = analysisResults.obfuscationAnalysis?.obfuscationScore || 0;
     const networkScore = analysisResults.networkAnalysis?.riskScore || 0;
+    const heuristicScore = analysisResults.heuristicAnalysis?.heuristicScore || 0;
     
     // Calculate weighted overall score
     const overallScore = this.calculateOverallScore(
       manifestScore,
       staticScore,
       obfuscationScore,
-      networkScore
+      networkScore,
+      heuristicScore
     );
     
     // Determine threat level
@@ -71,7 +85,7 @@ class ThreatClassifier {
       level: threatLevel,
       score: overallScore,
       categories: threatCategories,
-      summary: this.generateSummary(threatLevel, threatCategories),
+      summary: this.generateSummary(threatLevel, threatCategories, analysisResults),
       recommendations
     };
   }
@@ -82,15 +96,17 @@ class ThreatClassifier {
    * @param {number} staticScore - Static analysis score
    * @param {number} obfuscationScore - Obfuscation analysis score
    * @param {number} networkScore - Network analysis score
+   * @param {number} heuristicScore - Heuristic analysis score
    * @returns {number} Overall threat score (0-100)
    */
-  calculateOverallScore(manifestScore, staticScore, obfuscationScore, networkScore) {
+  calculateOverallScore(manifestScore, staticScore, obfuscationScore, networkScore, heuristicScore) {
     // Weights for each component
     const weights = {
-      manifest: 0.25,
-      static: 0.35,
+      manifest: 0.20,
+      static: 0.30,
       obfuscation: 0.20,
-      network: 0.20
+      network: 0.15,
+      heuristic: 0.15
     };
     
     // Calculate weighted score
@@ -98,7 +114,8 @@ class ThreatClassifier {
       (manifestScore * weights.manifest) +
       (staticScore * weights.static) +
       (obfuscationScore * weights.obfuscation) +
-      (networkScore * weights.network);
+      (networkScore * weights.network) +
+      (heuristicScore * weights.heuristic);
     
     // Round to nearest integer and ensure it's in 0-100 range
     return Math.min(100, Math.max(0, Math.round(weightedScore)));
@@ -170,6 +187,30 @@ class ThreatClassifier {
       categories.push({
         ...this.threatCategories.networkAbuse,
         severity: this.getCategorySeverity(analysisResults, 'networkAbuse')
+      });
+    }
+    
+    // Check for advanced malware
+    if (this.hasAdvancedMalware(analysisResults)) {
+      categories.push({
+        ...this.threatCategories.advancedMalware,
+        severity: this.getCategorySeverity(analysisResults, 'advancedMalware')
+      });
+    }
+    
+    // Check for behavioral threats
+    if (this.hasBehavioralThreats(analysisResults)) {
+      categories.push({
+        ...this.threatCategories.behavioralThreats,
+        severity: this.getCategorySeverity(analysisResults, 'behavioralThreats')
+      });
+    }
+    
+    // Check for heuristic threats
+    if (this.hasHeuristicThreats(analysisResults)) {
+      categories.push({
+        ...this.threatCategories.heuristicThreats,
+        severity: this.getCategorySeverity(analysisResults, 'heuristicThreats')
       });
     }
     
@@ -268,6 +309,63 @@ class ThreatClassifier {
   }
   
   /**
+   * Check for advanced malware indicators
+   * @param {Object} analysisResults - Analysis results
+   * @returns {boolean} True if advanced malware is detected
+   */
+  hasAdvancedMalware(analysisResults) {
+    const staticResults = analysisResults.staticAnalysis?.results || {};
+    
+    // Check for advanced malware patterns
+    return (
+      (staticResults.malware && staticResults.malware.length > 0) ||
+      // Check for specific high-risk patterns
+      (staticResults.malware?.some(m => 
+        m.type === 'cryptoMining' || 
+        m.type === 'formSubmitListener' || 
+        m.type === 'debuggerStatement'
+      ))
+    );
+  }
+  
+  /**
+   * Check for behavioral threat indicators
+   * @param {Object} analysisResults - Analysis results
+   * @returns {boolean} True if behavioral threats are detected
+   */
+  hasBehavioralThreats(analysisResults) {
+    const staticResults = analysisResults.staticAnalysis?.results || {};
+    
+    // Check for behavioral analysis patterns
+    return (
+      (staticResults.behavioral && staticResults.behavioral.length > 0) ||
+      // Check for specific suspicious behaviors
+      (staticResults.behavioral?.some(b => 
+        b.type === 'chromeDetection' || 
+        b.type === 'webdriverDetection' || 
+        b.type === 'longTimeout'
+      ))
+    );
+  }
+  
+  /**
+   * Check for heuristic threat indicators
+   * @param {Object} analysisResults - Analysis results
+   * @returns {boolean} True if heuristic threats are detected
+   */
+  hasHeuristicThreats(analysisResults) {
+    const heuristicResults = analysisResults.heuristicAnalysis;
+    
+    // Check if heuristic analysis detected significant threats
+    return (
+      heuristicResults &&
+      heuristicResults.heuristicScore > 30 && // Threshold for heuristic threats
+      heuristicResults.detectedHeuristics &&
+      heuristicResults.detectedHeuristics.length > 2 // Multiple indicators
+    );
+  }
+  
+  /**
    * Determine severity for a specific threat category
    * @param {Object} analysisResults - Analysis results
    * @param {string} category - Threat category
@@ -317,6 +415,34 @@ class ThreatClassifier {
         if (suspiciousCount > 0) return 'medium';
         return 'low';
         
+      case 'advancedMalware':
+        const malwareCount = analysisResults.staticAnalysis?.results?.malware?.length || 0;
+        const criticalMalware = analysisResults.staticAnalysis?.results?.malware?.filter(m => 
+          ['cryptoMining', 'formSubmitListener', 'debuggerStatement'].includes(m.type)
+        ).length || 0;
+        if (criticalMalware > 0) return 'high';
+        if (malwareCount > 2) return 'medium';
+        if (malwareCount > 0) return 'low';
+        return 'low';
+        
+      case 'behavioralThreats':
+        const behavioralCount = analysisResults.staticAnalysis?.results?.behavioral?.length || 0;
+        const stealthPatterns = analysisResults.staticAnalysis?.results?.behavioral?.filter(b => 
+          ['chromeDetection', 'webdriverDetection', 'longTimeout'].includes(b.type)
+        ).length || 0;
+        if (stealthPatterns > 1) return 'high';
+        if (behavioralCount > 2) return 'medium';
+        if (behavioralCount > 0) return 'low';
+        return 'low';
+        
+      case 'heuristicThreats':
+        const heuristicScore = analysisResults.heuristicAnalysis?.heuristicScore || 0;
+        const heuristicCount = analysisResults.heuristicAnalysis?.detectedHeuristics?.length || 0;
+        if (heuristicScore > 60 || heuristicCount > 5) return 'high';
+        if (heuristicScore > 40 || heuristicCount > 3) return 'medium';
+        if (heuristicScore > 30 || heuristicCount > 2) return 'low';
+        return 'low';
+        
       default:
         return 'low';
     }
@@ -328,7 +454,7 @@ class ThreatClassifier {
    * @param {Object[]} categories - Identified threat categories
    * @returns {string} Summary message
    */
-  generateSummary(threatLevel, categories) {
+  generateSummary(threatLevel, categories, analysisResults = {}) {
     if (threatLevel === 'safe') {
       return 'No significant threats detected. The extension appears to be safe.';
     }
@@ -336,7 +462,14 @@ class ThreatClassifier {
     let summary = `The extension poses a ${threatLevel} threat level. Key areas of concern include:\n`;
     
     categories.forEach(category => {
-      summary += `- **${category.name}**: ${category.description}\n`;
+      let description = category.description;
+      
+      // Add specific explanation for obfuscation
+      if (category.name === 'Code Obfuscation' && analysisResults.obfuscationAnalysis?.explanation) {
+        description += ` ${analysisResults.obfuscationAnalysis.explanation}`;
+      }
+      
+      summary += `- **${category.name}**: ${description}\n`;
     });
     
     return summary;
@@ -410,6 +543,89 @@ class ThreatClassifier {
             recommendations.push({
               recommendation: `The extension communicates with the following suspicious domains: ${suspiciousDomains}. Investigate these network requests to ensure they are legitimate.`,
               priority: 'high'
+            });
+          }
+          break;
+          
+        case 'Advanced Malware':
+          const malwarePatterns = analysisResults.staticAnalysis?.results?.malware || [];
+          const cryptoMining = malwarePatterns.filter(m => m.type === 'cryptoMining').length;
+          const formHijacking = malwarePatterns.filter(m => m.type === 'formSubmitListener').length;
+          const antiDebugging = malwarePatterns.filter(m => m.type === 'debuggerStatement').length;
+          
+          if (cryptoMining > 0) {
+            recommendations.push({
+              recommendation: 'CRITICAL: Cryptocurrency mining detected. This extension may be using your device to mine cryptocurrency without permission.',
+              priority: 'critical'
+            });
+          }
+          
+          if (formHijacking > 0) {
+            recommendations.push({
+              recommendation: 'HIGH RISK: Form hijacking detected. This extension may be intercepting and stealing form data including passwords.',
+              priority: 'critical'
+            });
+          }
+          
+          if (antiDebugging > 0) {
+            recommendations.push({
+              recommendation: 'SUSPICIOUS: Anti-debugging techniques detected. This extension may be trying to hide its malicious behavior from analysis.',
+              priority: 'high'
+            });
+          }
+          break;
+          
+        case 'Behavioral Threats':
+          const behavioralPatterns = analysisResults.staticAnalysis?.results?.behavioral || [];
+          const envDetection = behavioralPatterns.filter(b => b.type === 'chromeDetection' || b.type === 'webdriverDetection').length;
+          const stealthTiming = behavioralPatterns.filter(b => b.type === 'longTimeout').length;
+          
+          if (envDetection > 0) {
+            recommendations.push({
+              recommendation: 'SUSPICIOUS: Environment detection detected. This extension may be trying to detect analysis tools or security software.',
+              priority: 'high'
+            });
+          }
+          
+          if (stealthTiming > 0) {
+            recommendations.push({
+              recommendation: 'SUSPICIOUS: Unusual timing patterns detected. This extension may be using delays to avoid detection or perform stealth operations.',
+              priority: 'medium'
+            });
+          }
+          break;
+          
+        case 'Heuristic Threats':
+          const heuristicResults = analysisResults.heuristicAnalysis;
+          const heuristicScore = heuristicResults?.heuristicScore || 0;
+          const detectedHeuristics = heuristicResults?.detectedHeuristics || [];
+          
+          if (heuristicScore > 60) {
+            recommendations.push({
+              recommendation: 'CRITICAL: Multiple suspicious indicators detected. This extension exhibits a combination of behaviors that strongly suggest malicious intent.',
+              priority: 'critical'
+            });
+          } else if (heuristicScore > 40) {
+            recommendations.push({
+              recommendation: 'HIGH RISK: Multiple suspicious patterns detected. This extension shows several indicators of potentially malicious behavior.',
+              priority: 'high'
+            });
+          } else {
+            recommendations.push({
+              recommendation: 'SUSPICIOUS: Several suspicious indicators detected. Review the extension carefully before use.',
+              priority: 'medium'
+            });
+          }
+          
+          // Add specific recommendations based on detected heuristics
+          const criticalHeuristics = detectedHeuristics.filter(h => 
+            ['keylogging', 'dataExfiltration', 'c2Communication', 'dynamicCodeExecution'].includes(h.type)
+          );
+          
+          if (criticalHeuristics.length > 0) {
+            recommendations.push({
+              recommendation: `CRITICAL: High-risk behaviors detected: ${criticalHeuristics.map(h => h.type).join(', ')}. This extension poses a significant security risk.`,
+              priority: 'critical'
             });
           }
           break;

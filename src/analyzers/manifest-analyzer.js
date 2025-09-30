@@ -92,8 +92,8 @@ class ManifestAnalyzer {
    * @returns {Object} Permission analysis results
    */
   analyzePermissions(manifest) {
-    const permissions = manifest.permissions || [];
-    const optionalPermissions = manifest.optional_permissions || [];
+    const permissions = (manifest.permissions || []).filter(p => typeof p === 'string');
+    const optionalPermissions = (manifest.optional_permissions || []).filter(p => typeof p === 'string');
     
     // Check for dangerous permissions
     const dangerousFound = permissions.filter(p => 
@@ -199,7 +199,7 @@ class ManifestAnalyzer {
     
     // Check for broad connection patterns
     const broadMatches = matches.filter(m => 
-      m === "<all_urls>" || m === "*://*/*" || m.includes("*.")
+      m === "<all_urls>" || m === "*://*/*" || (typeof m === 'string' && m.includes("*."))
     );
     
     return {
@@ -242,7 +242,7 @@ class ManifestAnalyzer {
     // In Manifest V2, host permissions can be in the permissions array
     if (manifest.permissions) {
       const urlPatterns = manifest.permissions.filter(p => 
-        p.includes("://") || p === "<all_urls>"
+        typeof p === 'string' && (p.includes("://") || p === "<all_urls>")
       );
       hostPermissions.push(...urlPatterns);
     }

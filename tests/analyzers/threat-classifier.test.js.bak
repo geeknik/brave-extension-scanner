@@ -726,6 +726,7 @@ describe('ThreatClassifier', () => {
       expect(Array.isArray(recommendations)).toBe(true);
     });
   });
+});
   describe('detailed recommendation generation', () => {
     test('should generate crypto mining recommendations', () => {
       const analysisResults = {

@@ -566,6 +566,7 @@ describe('StaticAnalyzer', () => {
       expect(results.riskScore).toBeGreaterThan(30);
     });
   });
+});
   describe('edge cases and error handling', () => {
     test('should handle very large code inputs', () => {
       const largeCode = 'var x = 1;\n'.repeat(10000);

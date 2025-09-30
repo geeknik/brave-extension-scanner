@@ -68,6 +68,87 @@ class StaticAnalyzer {
         /screen\.colorDepth/g,
         /navigator\.plugins/g,
         /navigator\.mimeTypes/g
+      ],
+      
+      // Advanced malware patterns
+      malwarePatterns: [
+        // Cryptocurrency mining
+        /crypto\s*\.\s*getRandomValues/g,
+        /WebAssembly/g,
+        /worker\s*\.\s*postMessage/g,
+        /setInterval\s*\(\s*function\s*\(\s*\)\s*\{[\s\S]*?crypto/g,
+        
+        // Form hijacking
+        /addEventListener\s*\(\s*['"`]submit['"`]/g,
+        /form\s*\.\s*addEventListener/g,
+        /input\s*\[.*type.*password.*\]/g,
+        
+        // Clickjacking
+        /pointer-events\s*:\s*none/g,
+        /opacity\s*:\s*0/g,
+        /visibility\s*:\s*hidden/g,
+        
+        // Social engineering
+        /alert\s*\(/g,
+        /confirm\s*\(/g,
+        /prompt\s*\(/g,
+        /window\s*\.\s*open/g,
+        
+        // Data exfiltration
+        /XMLHttpRequest/g,
+        /fetch\s*\(/g,
+        /WebSocket/g,
+        /EventSource/g,
+        
+        // Steganography/encoding
+        /fromCharCode\s*\(/g,
+        /charCodeAt\s*\(/g,
+        /btoa\s*\(/g,
+        /atob\s*\(/g,
+        
+        // Anti-debugging
+        /debugger\s*;/g,
+        /console\s*\.\s*clear/g,
+        /setInterval\s*\(\s*function\s*\(\s*\)\s*\{[\s\S]*?debugger/g,
+        
+        // Persistence mechanisms
+        /localStorage/g,
+        /sessionStorage/g,
+        /indexedDB/g,
+        /chrome\s*\.\s*storage/g,
+        
+        // Network evasion
+        /Math\s*\.\s*random/g,
+        /Date\s*\.\s*now/g,
+        /setTimeout\s*\(\s*Math\s*\.\s*random/g,
+        
+        // Code injection
+        /innerHTML\s*=/g,
+        /outerHTML\s*=/g,
+        /insertAdjacentHTML/g,
+        /document\s*\.\s*write/g
+      ],
+      
+      // Behavioral analysis patterns
+      behavioralPatterns: [
+        // Suspicious timing patterns
+        /setTimeout\s*\(\s*[^,]*,\s*[0-9]{4,}/g, // Long delays
+        /setInterval\s*\(\s*[^,]*,\s*[0-9]{4,}/g, // Long intervals
+        
+        // Stealth patterns
+        /try\s*\{[\s\S]*?\}\s*catch/g,
+        /typeof\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*===?\s*['"`]undefined['"`]/g,
+        
+        // Environment detection
+        /window\s*\.\s*chrome/g,
+        /navigator\s*\.\s*webdriver/g,
+        /window\s*\.\s*phantom/g,
+        
+        // Communication patterns
+        /postMessage\s*\(/g,
+        /addEventListener\s*\(\s*['"`]message['"`]/g,
+        /chrome\s*\.\s*runtime\s*\.\s*sendMessage/g,
+        /chrome\s*\.\s*runtime\s*\.\s*onMessage/g
       ]
     };
     
@@ -265,6 +346,130 @@ class StaticAnalyzer {
           node.object.name === 'screen' &&
           node.property.type === 'Identifier' &&
           ['width', 'height', 'colorDepth', 'pixelDepth', 'availWidth', 'availHeight'].includes(node.property.name)
+      },
+      
+      // Advanced malware patterns
+      malwarePatterns: {
+        // Cryptocurrency mining
+        cryptoMining: (node) => 
+          node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          node.object.name === 'crypto' &&
+          node.property.type === 'Identifier' &&
+          node.property.name === 'getRandomValues',
+        
+        webAssembly: (node) => 
+          node.type === 'Identifier' &&
+          node.name === 'WebAssembly',
+        
+        // Form hijacking
+        formSubmitListener: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'MemberExpression' &&
+          node.callee.property.type === 'Identifier' &&
+          node.callee.property.name === 'addEventListener' &&
+          node.arguments.length >= 1 &&
+          node.arguments[0].type === 'Literal' &&
+          node.arguments[0].value === 'submit',
+        
+        // Social engineering
+        alertCall: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'Identifier' &&
+          ['alert', 'confirm', 'prompt'].includes(node.callee.name),
+        
+        windowOpen: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'MemberExpression' &&
+          node.callee.object.type === 'Identifier' &&
+          node.callee.object.name === 'window' &&
+          node.callee.property.type === 'Identifier' &&
+          node.callee.property.name === 'open',
+        
+        // Data exfiltration
+        networkRequest: (node) => 
+          node.type === 'NewExpression' &&
+          node.callee.type === 'Identifier' &&
+          ['XMLHttpRequest', 'WebSocket', 'EventSource'].includes(node.callee.name),
+        
+        fetchCall: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'Identifier' &&
+          node.callee.name === 'fetch',
+        
+        // Anti-debugging
+        debuggerStatement: (node) => 
+          node.type === 'DebuggerStatement',
+        
+        consoleClear: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'MemberExpression' &&
+          node.callee.object.type === 'Identifier' &&
+          node.callee.object.name === 'console' &&
+          node.callee.property.type === 'Identifier' &&
+          node.callee.property.name === 'clear',
+        
+        // Persistence mechanisms
+        storageAccess: (node) => 
+          node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          ['localStorage', 'sessionStorage'].includes(node.object.name),
+        
+        chromeStorage: (node) => 
+          node.type === 'MemberExpression' &&
+          node.object.type === 'MemberExpression' &&
+          node.object.object.type === 'Identifier' &&
+          node.object.object.name === 'chrome' &&
+          node.object.property.type === 'Identifier' &&
+          node.object.property.name === 'storage'
+      },
+      
+      // Behavioral analysis patterns
+      behavioralPatterns: {
+        // Suspicious timing
+        longTimeout: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'Identifier' &&
+          (node.callee.name === 'setTimeout' || node.callee.name === 'setInterval') &&
+          node.arguments.length >= 2 &&
+          node.arguments[1].type === 'Literal' &&
+          typeof node.arguments[1].value === 'number' &&
+          node.arguments[1].value > 10000, // 10+ seconds
+        
+        // Environment detection
+        chromeDetection: (node) => 
+          node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          node.object.name === 'window' &&
+          node.property.type === 'Identifier' &&
+          node.property.name === 'chrome',
+        
+        webdriverDetection: (node) => 
+          node.type === 'MemberExpression' &&
+          node.object.type === 'MemberExpression' &&
+          node.object.object.type === 'Identifier' &&
+          node.object.object.name === 'navigator' &&
+          node.object.property.type === 'Identifier' &&
+          node.object.property.name === 'webdriver',
+        
+        // Communication patterns
+        postMessage: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'MemberExpression' &&
+          node.callee.property.type === 'Identifier' &&
+          node.callee.property.name === 'postMessage',
+        
+        chromeRuntimeMessage: (node) => 
+          node.type === 'CallExpression' &&
+          node.callee.type === 'MemberExpression' &&
+          node.callee.object.type === 'MemberExpression' &&
+          node.callee.object.object.type === 'MemberExpression' &&
+          node.callee.object.object.object.type === 'Identifier' &&
+          node.callee.object.object.object.name === 'chrome' &&
+          node.callee.object.object.property.type === 'Identifier' &&
+          node.callee.object.object.property.name === 'runtime' &&
+          node.callee.object.property.type === 'Identifier' &&
+          node.callee.object.property.name === 'sendMessage'
       }
     };
   }
@@ -307,7 +512,9 @@ class StaticAnalyzer {
       cookieAccess: [],
       dataExfiltration: [],
       keylogging: [],
-      fingerprinting: []
+      fingerprinting: [],
+      malware: [],
+      behavioral: []
     };
     
     // Attempt to parse the code into an AST
@@ -323,6 +530,8 @@ class StaticAnalyzer {
       results.dataExfiltration = this.detectPatterns(code, this.patterns.dataExfiltrationPatterns);
       results.keylogging = this.detectPatterns(code, this.patterns.keyloggerPatterns);
       results.fingerprinting = this.detectPatterns(code, this.patterns.fingerprintingPatterns);
+      results.malware = this.detectPatterns(code, this.patterns.malwarePatterns);
+      results.behavioral = this.detectPatterns(code, this.patterns.behavioralPatterns);
       results.riskScore = this.calculateRiskScore(results);
       return results;
     }
@@ -338,6 +547,8 @@ class StaticAnalyzer {
       results.dataExfiltration = this.detectPatterns(code, this.patterns.dataExfiltrationPatterns);
       results.keylogging = this.detectPatterns(code, this.patterns.keyloggerPatterns);
       results.fingerprinting = this.detectPatterns(code, this.patterns.fingerprintingPatterns);
+      results.malware = this.detectPatterns(code, this.patterns.malwarePatterns);
+      results.behavioral = this.detectPatterns(code, this.patterns.behavioralPatterns);
     }
     
     results.riskScore = this.calculateRiskScore(results);
@@ -463,6 +674,117 @@ class StaticAnalyzer {
         if (self.astPatterns.fingerprintingPatterns.screenProperties(node)) {
           addMatch('fingerprinting', 'screenProperties', node, `Screen property accessed: ${node.property.name}`);
         }
+        
+        // Advanced malware patterns
+        if (self.astPatterns.malwarePatterns.cryptoMining(node)) {
+          addMatch('malware', 'cryptoMining', node, 'Cryptocurrency mining detected');
+        }
+        
+        if (self.astPatterns.malwarePatterns.webAssembly(node)) {
+          addMatch('malware', 'webAssembly', node, 'WebAssembly usage detected');
+        }
+        
+        if (self.astPatterns.malwarePatterns.storageAccess(node)) {
+          addMatch('malware', 'storageAccess', node, `Storage access: ${node.object.name}`);
+        }
+        
+        if (self.astPatterns.malwarePatterns.chromeStorage(node)) {
+          addMatch('malware', 'chromeStorage', node, 'Chrome storage API access');
+        }
+        
+        // Behavioral patterns
+        if (self.astPatterns.behavioralPatterns.chromeDetection(node)) {
+          addMatch('behavioral', 'chromeDetection', node, 'Chrome environment detection');
+        }
+        
+        if (self.astPatterns.behavioralPatterns.webdriverDetection(node)) {
+          addMatch('behavioral', 'webdriverDetection', node, 'WebDriver detection (anti-automation)');
+        }
+      },
+      
+      CallExpression(node, _, ancestors) {
+        // Existing patterns...
+        if (self.astPatterns.evalPatterns.evalCall(node)) {
+          addMatch('evalUsage', 'evalCall', node, 'Direct call to eval()');
+        }
+        
+        if (self.astPatterns.evalPatterns.timerWithString(node)) {
+          addMatch('evalUsage', 'timerWithString', node, 'setTimeout/setInterval with string argument');
+        }
+        
+        if (self.astPatterns.remoteCodePatterns.scriptCreation(node, _, ancestors)) {
+          addMatch('remoteCodeLoading', 'scriptCreation', node, 'Dynamic script element creation and src assignment');
+        }
+        
+        if (self.astPatterns.dataExfiltrationPatterns.chromeTabsQuery(node)) {
+          addMatch('dataExfiltration', 'chromeTabsQuery', node, 'Access to chrome.tabs.query');
+        }
+        
+        if (self.astPatterns.keyloggingPatterns.keyboardEventListener(node)) {
+          addMatch('keylogging', 'keyboardEventListener', node, 'Keyboard event listener attached');
+        }
+        
+        if (self.astPatterns.evalPatterns.stringFromCharCode(node)) {
+          addMatch('evalUsage', 'stringFromCharCode', node, 'String.fromCharCode obfuscation detected');
+        }
+        
+        if (self.astPatterns.evalPatterns.base64Functions(node)) {
+          addMatch('evalUsage', 'base64Functions', node, 'Base64 encoding/decoding function');
+        }
+        
+        if (self.astPatterns.evalPatterns.functionApply(node)) {
+          addMatch('evalUsage', 'functionApply', node, 'Function.apply with null context');
+        }
+        
+        // New malware patterns
+        if (self.astPatterns.malwarePatterns.formSubmitListener(node)) {
+          addMatch('malware', 'formSubmitListener', node, 'Form submission hijacking detected');
+        }
+        
+        if (self.astPatterns.malwarePatterns.alertCall(node)) {
+          addMatch('malware', 'alertCall', node, `Social engineering: ${node.callee.name}() call`);
+        }
+        
+        if (self.astPatterns.malwarePatterns.windowOpen(node)) {
+          addMatch('malware', 'windowOpen', node, 'Window.open() call - potential popup abuse');
+        }
+        
+        if (self.astPatterns.malwarePatterns.fetchCall(node)) {
+          addMatch('malware', 'fetchCall', node, 'Fetch API call - potential data exfiltration');
+        }
+        
+        if (self.astPatterns.malwarePatterns.consoleClear(node)) {
+          addMatch('malware', 'consoleClear', node, 'Console.clear() - anti-debugging technique');
+        }
+        
+        // New behavioral patterns
+        if (self.astPatterns.behavioralPatterns.longTimeout(node)) {
+          addMatch('behavioral', 'longTimeout', node, `Suspicious long delay: ${node.arguments[1].value}ms`);
+        }
+        
+        if (self.astPatterns.behavioralPatterns.postMessage(node)) {
+          addMatch('behavioral', 'postMessage', node, 'PostMessage communication');
+        }
+        
+        if (self.astPatterns.behavioralPatterns.chromeRuntimeMessage(node)) {
+          addMatch('behavioral', 'chromeRuntimeMessage', node, 'Chrome runtime message passing');
+        }
+      },
+      
+      NewExpression(node) {
+        if (self.astPatterns.evalPatterns.functionConstructor(node)) {
+          addMatch('evalUsage', 'functionConstructor', node, 'new Function() constructor');
+        }
+        
+        if (self.astPatterns.malwarePatterns.networkRequest(node)) {
+          addMatch('malware', 'networkRequest', node, `Network request: ${node.callee.name}`);
+        }
+      },
+      
+      DebuggerStatement(node) {
+        if (self.astPatterns.malwarePatterns.debuggerStatement(node)) {
+          addMatch('malware', 'debuggerStatement', node, 'Debugger statement - anti-debugging technique');
+        }
       }
     });
   }
@@ -504,6 +826,8 @@ class StaticAnalyzer {
       dataExfiltration: 15,
       keylogging: 20,
       fingerprinting: 5,
+      malware: 30,        // High weight for advanced malware patterns
+      behavioral: 15      // Medium weight for behavioral analysis
     };
     
     for (const key in weights) {
@@ -528,7 +852,9 @@ class StaticAnalyzer {
       cookieAccess: 'Cookie Access',
       dataExfiltration: 'Data Exfiltration',
       keylogging: 'Keylogging',
-      fingerprinting: 'Browser Fingerprinting'
+      fingerprinting: 'Browser Fingerprinting',
+      malware: 'Advanced Malware',
+      behavioral: 'Behavioral Analysis'
     };
 
     for (const key in categories) {

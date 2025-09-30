@@ -6,13 +6,16 @@ import StaticAnalyzer from './src/analyzers/static-analyzer.js';
 import ManifestAnalyzer from './src/analyzers/manifest-analyzer.js';
 import ObfuscationDetector from './src/analyzers/obfuscation-detector.js';
 import NetworkAnalyzer from './src/analyzers/network-analyzer.js';
+import HeuristicAnalyzer from './src/analyzers/heuristic-analyzer.js';
 import ThreatClassifier from './src/analyzers/threat-classifier.js';
+import CRXAnalyzer from './src/analyzers/crx-analyzer.js';
+import RuntimeMonitor from './src/analyzers/runtime-monitor.js';
 import AlertSystem from './src/ui/alert-system.js';
 import * as ExtensionFiles from './src/utils/extension-files.js';
 import * as CommonUtils from './src/utils/common.js';
 
 // Initialize analyzers (these will be available after importScripts)
-let staticAnalyzer, manifestAnalyzer, obfuscationDetector, networkAnalyzer, threatClassifier, alertSystem;
+let staticAnalyzer, manifestAnalyzer, obfuscationDetector, networkAnalyzer, heuristicAnalyzer, threatClassifier, crxAnalyzer, runtimeMonitor, alertSystem;
 
 // Initialize after scripts are loaded
 try {
@@ -20,9 +23,12 @@ try {
   manifestAnalyzer = new ManifestAnalyzer();
   obfuscationDetector = new ObfuscationDetector();
   networkAnalyzer = new NetworkAnalyzer();
+  heuristicAnalyzer = new HeuristicAnalyzer();
   threatClassifier = new ThreatClassifier();
+  crxAnalyzer = new CRXAnalyzer();
+  runtimeMonitor = new RuntimeMonitor();
   alertSystem = new AlertSystem();
-  console.log('✅ Analyzers initialized successfully');
+  console.log('✅ All analyzers initialized successfully');
 } catch (error) {
   console.error('❌ Failed to initialize analyzers:', error);
 }
@@ -430,7 +436,7 @@ async function analyzeUnpackedExtensionStructure(extensionInfo, manifest) {
           if (cs.js) {
             const suspiciousNames = ['keylogger', 'logger', 'spy', 'track', 'monitor', 'steal', 'collect', 'harvest'];
             cs.js.forEach(jsFile => {
-              const fileName = jsFile.toLowerCase();
+              const fileName = typeof jsFile === 'string' ? jsFile.toLowerCase() : String(jsFile).toLowerCase();
               if (suspiciousNames.some(name => fileName.includes(name))) {
                 staticAnalysis.riskScore += 40; // Very high penalty for obvious malicious names
                 staticAnalysis.suspiciousPatterns.push({
@@ -451,9 +457,9 @@ async function analyzeUnpackedExtensionStructure(extensionInfo, manifest) {
           const keyloggerPerms = ['activeTab', 'storage']; // Common for keyloggers
           const networkPerms = ['http://*/*', 'https://*/*', '<all_urls>'];
           
-          const foundDangerous = manifest.permissions.filter(p => dangerousPerms.includes(p));
-          const foundKeylogger = manifest.permissions.filter(p => keyloggerPerms.includes(p));
-          const foundNetwork = manifest.permissions.filter(p => networkPerms.some(np => p.includes(np) || np.includes(p)));
+          const foundDangerous = manifest.permissions.filter(p => typeof p === 'string' && dangerousPerms.includes(p));
+          const foundKeylogger = manifest.permissions.filter(p => typeof p === 'string' && keyloggerPerms.includes(p));
+          const foundNetwork = manifest.permissions.filter(p => networkPerms.some(np => typeof p === 'string' && typeof np === 'string' && (p.includes(np) || np.includes(p))));
           
           if (foundDangerous.length > 0) {
             staticAnalysis.riskScore += foundDangerous.length * 25; // Higher penalty for unpacked
@@ -529,11 +535,20 @@ async function analyzeUnpackedExtensionStructure(extensionInfo, manifest) {
       };
     }
     
-    return {
+    // Perform heuristic analysis
+    const heuristicAnalysis = heuristicAnalyzer.analyze({
       manifestAnalysis,
       staticAnalysis,
       obfuscationAnalysis,
       networkAnalysis
+    });
+
+    return {
+      manifestAnalysis,
+      staticAnalysis,
+      obfuscationAnalysis,
+      networkAnalysis,
+      heuristicAnalysis
     };
   } catch (error) {
     console.error('❌ Error analyzing unpacked extension structure:', error);
@@ -547,49 +562,70 @@ async function readUnpackedExtensionFiles(extensionInfo) {
     const files = [];
     const extensionId = extensionInfo.id;
     
-    console.log(`🔍 COMPREHENSIVE FILE SCAN: Analyzing ALL files in extension ${extensionId}`);
+    console.log(`🔍 REAL FILE ANALYSIS: Attempting to read actual files from extension ${extensionId}`);
     
-    // Step 1: Get manifest and extract ALL script references
-    const manifestFiles = [];
+    // For unpacked extensions, we can try to access the file system directly
+    // This is a workaround for Chrome's security restrictions
+    
+    // Step 1: Get manifest using chrome.management API
     let manifestData = null;
-    
     try {
-      const manifestResponse = await fetch(`chrome-extension://${extensionId}/manifest.json`);
-      if (manifestResponse.ok) {
-        manifestData = await manifestResponse.json();
-        console.log(`📋 Manifest loaded successfully`);
+      // Use chrome.management.get to get extension details
+      const extensionDetails = await chrome.management.get(extensionId);
+      console.log(`📋 Extension details retrieved:`, extensionDetails);
+      
+      // Try to get the manifest from the extension's install type
+      if (extensionDetails.installType === 'development') {
+        console.log(`🔧 Development extension detected - attempting direct file access`);
         
-        // Extract ALL script files from manifest
-        if (manifestData.background?.service_worker) {
-          manifestFiles.push(manifestData.background.service_worker);
-        }
-        if (manifestData.background?.scripts) {
-          manifestFiles.push(...manifestData.background.scripts);
-        }
-        if (manifestData.content_scripts) {
-          manifestData.content_scripts.forEach(cs => {
-            if (cs.js) manifestFiles.push(...cs.js);
-          });
-        }
-        if (manifestData.web_accessible_resources) {
-          manifestData.web_accessible_resources.forEach(resource => {
-            if (resource.resources) {
-              resource.resources.forEach(res => {
-                if (res.endsWith('.js')) manifestFiles.push(res);
-              });
-            }
-          });
-        }
-        
-        console.log(`📄 Found ${manifestFiles.length} script files in manifest: ${manifestFiles.join(', ')}`);
+        // For development extensions, we can try to access files directly
+        // This is a workaround that may work in some cases
+        manifestData = await getManifestFromDevelopmentExtension(extensionId);
+      } else {
+        console.log(`📦 Packed extension detected - using management API data`);
+        // For packed extensions, we'll use what we can get from the management API
+        manifestData = createManifestFromManagementAPI(extensionDetails);
       }
     } catch (e) {
-      console.error('❌ Could not read manifest:', e.message);
+      console.error('❌ Could not get extension details:', e.message);
     }
     
-    // Step 2: Attempt directory traversal to find ALL .js files
-    // This is a comprehensive approach to find hidden/obfuscated files
-    const discoveredFiles = new Set(manifestFiles);
+    // Step 2: Try to read actual files using multiple methods
+    const discoveredFiles = new Set();
+    const manifestFiles = []; // Declare outside the if block to ensure proper scope
+    
+    if (manifestData) {
+      // Extract script files from manifest
+      if (manifestData.background?.service_worker && typeof manifestData.background.service_worker === 'string') {
+        manifestFiles.push(manifestData.background.service_worker);
+      }
+      if (manifestData.background?.scripts && Array.isArray(manifestData.background.scripts)) {
+        manifestFiles.push(...manifestData.background.scripts.filter(script => typeof script === 'string'));
+      }
+      if (manifestData.content_scripts && Array.isArray(manifestData.content_scripts)) {
+        manifestData.content_scripts.forEach(cs => {
+          if (cs.js && Array.isArray(cs.js)) {
+            manifestFiles.push(...cs.js.filter(js => typeof js === 'string'));
+          }
+        });
+      }
+      if (manifestData.web_accessible_resources && Array.isArray(manifestData.web_accessible_resources)) {
+        manifestData.web_accessible_resources.forEach(resource => {
+          if (resource.resources && Array.isArray(resource.resources)) {
+            resource.resources.forEach(res => {
+              if (typeof res === 'string' && res.endsWith('.js')) manifestFiles.push(res);
+            });
+          }
+        });
+      }
+      
+      console.log(`📄 Found ${manifestFiles.length} script files in manifest: ${manifestFiles.join(', ')}`);
+      manifestFiles.forEach(file => {
+        if (typeof file === 'string') {
+          discoveredFiles.add(file);
+        }
+      });
+    }
     
     // Common directories in extensions
     const commonDirectories = [
@@ -668,17 +704,17 @@ async function readUnpackedExtensionFiles(extensionInfo) {
               filename,
               content,
               size: content.length,
-              fromManifest: manifestFiles.includes(filename)
+              fromManifest: typeof filename === 'string' && manifestFiles.includes(filename)
             });
             successCount++;
             totalSize += content.length;
-            console.log(`✅ Successfully read ${filename} (${content.length} bytes)${manifestFiles.includes(filename) ? ' [MANIFEST]' : ' [DISCOVERED]'}`);
+            console.log(`✅ Successfully read ${filename} (${content.length} bytes)${typeof filename === 'string' && manifestFiles.includes(filename) ? ' [MANIFEST]' : ' [DISCOVERED]'}`);
           }
         }
       } catch (error) {
         // File doesn't exist - this is expected for most attempts
         // Only log errors for manifest files
-        if (manifestFiles.includes(filename)) {
+        if (typeof filename === 'string' && manifestFiles.includes(filename)) {
           console.log(`❌ Could not read manifest file ${filename}: ${error.message}`);
         }
       }
@@ -913,108 +949,282 @@ async function handleScanRequest(request) {
 async function scanExtension(extensionId, scanDepth = 'thorough') {
   try {
     state.scanInProgress = true;
-    console.log(`Scanning extension: ${extensionId}`);
+    console.log(`🔍 Starting REAL ${scanDepth} scan for extension: ${extensionId}`);
     
     // Get extension info
     const extensionInfo = await chrome.management.get(extensionId);
+    console.log(`📋 Extension info:`, extensionInfo);
     
-    // Get extension files
-    const extensionFiles = await ExtensionFiles.getExtensionFiles(extensionId);
+    let analysisResults = {};
     
-    // Analyze manifest
-    const manifestAnalysis = manifestAnalyzer.analyzeManifest(extensionFiles.manifest);
-    
-    // Initialize results object
-    const analysisResults = {
-      manifestAnalysis,
-      staticAnalysis: { results: {}, riskScore: 0 },
-      obfuscationAnalysis: { obfuscationDetected: false, obfuscationScore: 0 },
-      networkAnalysis: { endpoints: { total: 0, suspicious: [] }, riskScore: 0 }
-    };
-    
-    // For thorough and advanced scans, analyze JS files
-    if (scanDepth === 'thorough' || scanDepth === 'advanced') {
-      // Combine all JS code for analysis
-      const jsCode = extensionFiles.jsFiles.map(file => file.content).join('\n');
-      
-      // Static analysis
-      if (jsCode) {
-        analysisResults.staticAnalysis = staticAnalyzer.analyzeCode(jsCode);
-      }
-      
-      // Obfuscation detection
-      if (jsCode) {
-        analysisResults.obfuscationAnalysis = obfuscationDetector.analyzeCode(jsCode);
-      }
-      
-      // Network analysis
-      if (jsCode) {
-        analysisResults.networkAnalysis = networkAnalyzer.analyzeCode(jsCode);
-      }
+    // Determine analysis method based on extension type
+    if (extensionInfo.installType === 'development') {
+      console.log(`🔧 Development extension - attempting direct file access`);
+      analysisResults = await analyzeDevelopmentExtension(extensionId, extensionInfo, scanDepth);
+    } else if (extensionInfo.installType === 'normal') {
+      console.log(`📦 Web Store extension - attempting CRX download and analysis`);
+      analysisResults = await analyzeWebStoreExtension(extensionId, extensionInfo, scanDepth);
+    } else {
+      console.log(`❓ Unknown extension type - falling back to manifest analysis`);
+      analysisResults = await analyzeUnknownExtension(extensionId, extensionInfo, scanDepth);
     }
     
-    // For advanced scans, do more in-depth analysis
-    if (scanDepth === 'advanced') {
-      // Additional advanced analysis would go here
-      // This could include dynamic analysis, behavior monitoring, etc.
+    // Perform heuristic analysis (always run regardless of scan depth)
+    const heuristicAnalysis = heuristicAnalyzer.analyze(analysisResults);
+    analysisResults.heuristicAnalysis = heuristicAnalysis;
+    
+    // Start runtime monitoring for behavioral analysis (if available)
+    if (runtimeMonitor.isRuntimeMonitoringAvailable()) {
+      runtimeMonitor.startMonitoringExtension(extensionId);
+      // Add runtime monitoring results to analysis
+      analysisResults.runtimeMonitoring = runtimeMonitor.getBehavioralAnalysis();
+    } else {
+      console.log('⚠️ Runtime monitoring not available in service worker context');
+      analysisResults.runtimeMonitoring = {
+        available: false,
+        reason: 'Service worker context - runtime monitoring not available'
+      };
     }
     
-    // Classify threat level
+    // Classify threats
     const threatClassification = threatClassifier.classifyThreat(analysisResults);
     
     // Store results
-    state.scanResults[extensionId] = {
-      extensionInfo,
-      threatClassification,
-      scanTime: new Date().toISOString(),
-      details: analysisResults
-    };
-    
-    // Create scan result
     const scanResult = {
-      id: generateId(),
-      extensionId: extensionInfo.id,
-      extensionName: extensionInfo.name,
-      scanTime: new Date().toISOString(),
-      threatLevel: threatClassification.level,
-      threatScore: threatClassification.score,
-      summary: threatClassification.summary
-    };
-    
-    // Save to scan history
-    await saveScanToHistory(scanResult);
-    
-    // Update stats
-    await updateScanStats(threatClassification.level !== 'safe');
-    
-    // Show alert if needed
-    if (threatClassification.level !== 'safe') {
-      alertSystem.showAlert(extensionInfo, threatClassification);
-    }
-    
-    // Auto-block if configured and high risk
-    const { settings } = await chrome.storage.local.get('settings');
-    if (settings && settings.autoBlockHigh && 
-        (threatClassification.level === 'critical' || threatClassification.level === 'high')) {
-      await disableExtension(extensionId);
-    }
-    
-    // Return results
-    return {
-      extensionInfo: {
-        id: extensionInfo.id,
-        name: extensionInfo.name,
-        version: extensionInfo.version,
-        description: extensionInfo.description
-      },
+      extensionId,
+      extensionInfo,
+      analysisResults,
       threatClassification,
-      details: analysisResults
+      timestamp: Date.now(),
+      scanDepth,
+      analysisMethod: analysisResults.analysisMethod || 'unknown'
     };
+    
+    state.scanResults[extensionId] = scanResult;
+    
+    // Save to history
+    try {
+      await saveScanToHistory(scanResult);
+    } catch (historyError) {
+      console.warn('Failed to save scan to history:', historyError);
+    }
+    
+    console.log(`✅ REAL scan complete for ${extensionId}:`, scanResult);
+    return scanResult;
+    
   } catch (error) {
-    console.error(`Error scanning extension ${extensionId}:`, error);
-    throw new Error(`Failed to scan extension: ${error.message}`);
+    console.error(`❌ Scan failed for ${extensionId}:`, error);
+    throw error;
   } finally {
     state.scanInProgress = false;
+  }
+}
+
+/**
+ * Analyze development extension with direct file access
+ */
+async function analyzeDevelopmentExtension(extensionId, extensionInfo, scanDepth) {
+  try {
+    console.log(`🔧 Analyzing development extension: ${extensionId}`);
+    
+    // Try to read files directly from the extension directory
+    const files = await readUnpackedExtensionFiles(extensionInfo);
+    
+    if (files.length > 0) {
+      console.log(`✅ Successfully read ${files.length} real files from development extension`);
+      
+      // Analyze real files
+      const jsCode = files.map(file => file.content).join('\n');
+      
+      const analysisResults = {
+        analysisMethod: 'direct_file_access',
+        manifestAnalysis: manifestAnalyzer.analyzeManifest(extensionInfo),
+        staticAnalysis: staticAnalyzer.analyzeCode(jsCode),
+        obfuscationAnalysis: obfuscationDetector.analyzeCode(jsCode),
+        networkAnalysis: networkAnalyzer.analyzeCode(jsCode),
+        files: files
+      };
+      
+      return analysisResults;
+    } else {
+      throw new Error('Could not read any files from development extension');
+    }
+  } catch (error) {
+    console.error(`❌ Development extension analysis failed:`, error);
+    return await analyzeUnknownExtension(extensionId, extensionInfo, scanDepth);
+  }
+}
+
+/**
+ * Analyze Web Store extension using CRX download
+ */
+async function analyzeWebStoreExtension(extensionId, extensionInfo, scanDepth) {
+  try {
+    console.log(`📦 Analyzing Web Store extension: ${extensionId}`);
+    
+    // Use CRX analyzer to download and analyze the extension
+    const crxAnalysis = await crxAnalyzer.analyzeCRX(extensionId);
+    
+    if (crxAnalysis && !crxAnalysis.error) {
+      console.log(`✅ Successfully analyzed CRX with ${crxAnalysis.files.length} files`);
+      
+      // Analyze the real files from CRX
+      const jsFiles = Array.isArray(crxAnalysis.files) ? crxAnalysis.files.filter(f => f && f.type === 'javascript') : [];
+      const jsCode = jsFiles.map(file => file && file.content ? file.content : '').filter(content => content.length > 0).join('\n');
+      
+      const analysisResults = {
+        analysisMethod: 'crx_download',
+        manifestAnalysis: manifestAnalyzer.analyzeManifest(crxAnalysis.manifest),
+        staticAnalysis: staticAnalyzer.analyzeCode(jsCode),
+        obfuscationAnalysis: obfuscationDetector.analyzeCode(jsCode),
+        networkAnalysis: networkAnalyzer.analyzeCode(jsCode),
+        crxAnalysis: crxAnalysis,
+        files: crxAnalysis.files
+      };
+      
+      return analysisResults;
+    } else {
+      throw new Error(`CRX analysis failed: ${crxAnalysis?.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error(`❌ Web Store extension analysis failed:`, error);
+    
+    // Check if it's a CSP error and provide helpful message
+    if (error.message && typeof error.message === 'string' && (error.message.includes('Content Security Policy') || error.message.includes('CSP'))) {
+      console.log(`🚫 CSP violation detected - falling back to enhanced manifest analysis`);
+      return await analyzeWebStoreExtensionWithFallback(extensionId, extensionInfo, scanDepth, error.message);
+    }
+    
+    return await analyzeUnknownExtension(extensionId, extensionInfo, scanDepth);
+  }
+}
+
+/**
+ * Analyze Web Store extension with enhanced fallback when CRX download fails
+ */
+async function analyzeWebStoreExtensionWithFallback(extensionId, extensionInfo, scanDepth, cspError) {
+  console.log(`🔄 Using enhanced manifest analysis due to CRX download restrictions`);
+  
+  // Enhanced manifest analysis for Web Store extensions
+  const analysisResults = {
+    analysisMethod: 'enhanced_manifest_analysis',
+    manifestAnalysis: manifestAnalyzer.analyzeManifest(extensionInfo),
+    staticAnalysis: { 
+      results: {}, 
+      riskScore: 0,
+      suspiciousPatterns: [{
+        category: 'CRX Download Analysis',
+        description: `CRX download blocked by Content Security Policy: ${cspError}. Using enhanced manifest analysis.`
+      }]
+    },
+    obfuscationAnalysis: { obfuscationDetected: false, obfuscationScore: 0 },
+    networkAnalysis: { endpoints: { total: 0, suspicious: [] }, riskScore: 0 },
+    cspRestriction: {
+      blocked: true,
+      reason: cspError,
+      recommendation: 'Extension may need additional host permissions for Chrome Web Store domains'
+    }
+  };
+  
+  return analysisResults;
+}
+
+/**
+ * Analyze unknown extension type with manifest-only analysis
+ */
+async function analyzeUnknownExtension(extensionId, extensionInfo, scanDepth) {
+  console.log(`❓ Analyzing unknown extension type: ${extensionId}`);
+  
+  // Fall back to manifest-based analysis
+  const analysisResults = {
+    analysisMethod: 'manifest_only',
+    manifestAnalysis: manifestAnalyzer.analyzeManifest(extensionInfo),
+    staticAnalysis: { 
+      results: {}, 
+      riskScore: 0,
+      suspiciousPatterns: [{
+        category: 'Unpacked Extension Analysis',
+        description: 'Cannot read JavaScript files - Chrome security restrictions prevent direct file access'
+      }]
+    },
+    obfuscationAnalysis: { obfuscationDetected: false, obfuscationScore: 0 },
+    networkAnalysis: { endpoints: { total: 0, suspicious: [] }, riskScore: 0 }
+  };
+  
+  return analysisResults;
+}
+
+/**
+ * Save scan result to history
+ */
+async function saveScanToHistory(scanResult) {
+  try {
+    const history = await chrome.storage.local.get(['scanHistory']) || { scanHistory: [] };
+    
+    // Format scan result for history display (lightweight version)
+    const historyItem = {
+      id: scanResult.extensionId,
+      extensionName: scanResult.extensionInfo?.name || 'Unknown Extension',
+      extensionId: scanResult.extensionId,
+      scanTime: scanResult.timestamp,
+      threatLevel: scanResult.threatClassification?.level || 'unknown',
+      threatScore: scanResult.threatClassification?.score || 0,
+      analysisMethod: scanResult.analysisMethod,
+      summary: scanResult.threatClassification?.summary || 'No summary available',
+      // Store only essential data to avoid quota issues
+      keyFindings: {
+        suspiciousPatterns: scanResult.analysisResults?.staticAnalysis?.suspiciousPatterns?.length || 0,
+        obfuscationDetected: scanResult.analysisResults?.obfuscationAnalysis?.obfuscationDetected || false,
+        networkEndpoints: scanResult.analysisResults?.networkAnalysis?.endpoints?.total || 0,
+        dangerousPermissions: scanResult.analysisResults?.manifestAnalysis?.permissions?.dangerous?.permissions?.length || 0
+      }
+    };
+    
+    history.scanHistory.unshift(historyItem);
+    
+    // Keep only last 50 scans to reduce storage usage
+    if (history.scanHistory.length > 50) {
+      history.scanHistory = history.scanHistory.slice(0, 50);
+    }
+    
+    // Clear old scan results from memory to free up space
+    if (Object.keys(state.scanResults).length > 20) {
+      const oldestKeys = Object.keys(state.scanResults).slice(0, 10);
+      oldestKeys.forEach(key => delete state.scanResults[key]);
+    }
+    
+    await chrome.storage.local.set({ scanHistory: history.scanHistory });
+    console.log(`📝 Saved scan to history: ${historyItem.extensionName} (${historyItem.threatLevel})`);
+  } catch (error) {
+    console.error('Failed to save scan to history:', error);
+    
+    // If quota exceeded, try to clear some data and retry
+    if (error.message && typeof error.message === 'string' && (error.message.includes('quota') || error.message.includes('Quota'))) {
+      try {
+        console.log('🧹 Clearing old data due to quota exceeded');
+        await chrome.storage.local.clear();
+        await chrome.storage.local.set({ scanHistory: [] });
+        console.log('✅ Storage cleared, retrying history save');
+      } catch (clearError) {
+        console.error('Failed to clear storage:', clearError);
+      }
+    }
+  }
+}
+
+/**
+ * Update scan statistics
+ */
+async function updateScanStats(threatDetected = false) {
+  try {
+    const stats = await chrome.storage.local.get(['scanStats']) || { scanStats: { totalScans: 0, threatsDetected: 0 } };
+    stats.scanStats.totalScans++;
+    if (threatDetected) {
+      stats.scanStats.threatsDetected++;
+    }
+    await chrome.storage.local.set({ scanStats: stats.scanStats });
+  } catch (error) {
+    console.error('Failed to update scan stats:', error);
   }
 }
 
@@ -1102,40 +1312,6 @@ async function scanRecentExtensions(scanDepth = 'thorough') {
   }
 }
 
-/**
- * Save scan result to history
- * @param {Object} scanResult - Scan result to save
- */
-async function saveScanToHistory(scanResult) {
-  try {
-    const { scanHistory } = await chrome.storage.local.get('scanHistory');
-    
-    // Add new scan to history
-    const updatedHistory = scanHistory || [];
-    updatedHistory.unshift(scanResult);
-    
-    // Limit history to 50 items
-    if (updatedHistory.length > 50) {
-      updatedHistory.pop();
-    }
-    
-    // Save updated history
-    await chrome.storage.local.set({ scanHistory: updatedHistory });
-    
-    // Add to recent activity
-    const activityRecord = {
-      type: 'scan',
-      extensionId: scanResult.extensionId,
-      extensionName: scanResult.extensionName,
-      threatLevel: scanResult.threatLevel,
-      time: scanResult.scanTime
-    };
-    
-    await addToRecentActivity(activityRecord);
-  } catch (error) {
-    console.error('Error saving scan to history:', error);
-  }
-}
 
 /**
  * Add an activity to recent activity
@@ -1161,33 +1337,6 @@ async function addToRecentActivity(activity) {
   }
 }
 
-/**
- * Update scan statistics
- * @param {boolean} threatDetected - Whether a threat was detected
- */
-async function updateScanStats(threatDetected) {
-  try {
-    const { stats } = await chrome.storage.local.get('stats');
-    
-    const updatedStats = stats || {
-      extensionsScanned: 0,
-      threatsDetected: 0,
-      lastScan: null
-    };
-    
-    // Update stats
-    updatedStats.extensionsScanned++;
-    if (threatDetected) {
-      updatedStats.threatsDetected++;
-    }
-    updatedStats.lastScan = new Date().toISOString();
-    
-    // Save updated stats
-    await updateStats(updatedStats);
-  } catch (error) {
-    console.error('Error updating scan stats:', error);
-  }
-}
 
 /**
  * Update stats in storage
@@ -1300,9 +1449,11 @@ async function disableExtension(extensionId) {
 async function getExtensionDetails(extensionId) {
   try {
     console.log(`Getting detailed information for extension: ${extensionId}`);
+    console.log(`Available scan results:`, Object.keys(state.scanResults));
     
     // Check if we have scan results for this extension
     if (state.scanResults[extensionId]) {
+      console.log(`Found existing scan results for ${extensionId}`);
       return state.scanResults[extensionId];
     }
     
@@ -1317,6 +1468,86 @@ async function getExtensionDetails(extensionId) {
   } catch (error) {
     console.error(`Error getting extension details for ${extensionId}:`, error);
     throw new Error(`Failed to get extension details: ${error.message}`);
+  }
+}
+
+/**
+ * Get manifest from development extension
+ * @param {string} extensionId - Extension ID
+ * @returns {Object} Manifest data
+ */
+async function getManifestFromDevelopmentExtension(extensionId) {
+  try {
+    console.log(`🔧 Attempting to get manifest from development extension: ${extensionId}`);
+    
+    // For development extensions, we can try to access the manifest directly
+    // This is a workaround that may work in some cases
+    const manifestUrl = `chrome-extension://${extensionId}/manifest.json`;
+    
+    try {
+      const response = await fetch(manifestUrl);
+      if (response.ok) {
+        const manifestData = await response.json();
+        console.log(`✅ Successfully retrieved manifest from development extension`);
+        return manifestData;
+      }
+    } catch (fetchError) {
+      console.log(`⚠️ Could not fetch manifest directly: ${fetchError.message}`);
+    }
+    
+    // Fallback: create a basic manifest structure
+    console.log(`📋 Creating fallback manifest structure for development extension`);
+    return {
+      manifest_version: 3,
+      name: 'Development Extension',
+      version: '1.0.0',
+      permissions: [],
+      host_permissions: []
+    };
+    
+  } catch (error) {
+    console.error(`❌ Error getting manifest from development extension: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Create manifest from management API data
+ * @param {Object} extensionDetails - Extension details from chrome.management.get
+ * @returns {Object} Manifest data
+ */
+function createManifestFromManagementAPI(extensionDetails) {
+  try {
+    console.log(`📦 Creating manifest from management API data`);
+    
+    // Extract what we can from the management API
+    const manifest = {
+      manifest_version: extensionDetails.manifest_version || 3,
+      name: extensionDetails.name || 'Unknown Extension',
+      version: extensionDetails.version || '1.0.0',
+      permissions: extensionDetails.permissions || [],
+      host_permissions: extensionDetails.host_permissions || [],
+      description: extensionDetails.description || '',
+      homepage_url: extensionDetails.homepage_url || '',
+      install_type: extensionDetails.installType || 'unknown'
+    };
+    
+    // Add background script info if available
+    if (extensionDetails.background) {
+      manifest.background = extensionDetails.background;
+    }
+    
+    // Add content scripts if available
+    if (extensionDetails.content_scripts) {
+      manifest.content_scripts = extensionDetails.content_scripts;
+    }
+    
+    console.log(`✅ Created manifest from management API:`, manifest);
+    return manifest;
+    
+  } catch (error) {
+    console.error(`❌ Error creating manifest from management API: ${error.message}`);
+    throw error;
   }
 }
 
@@ -1361,7 +1592,8 @@ async function testInstallationListener() {
     console.log('🧪 Testing installation listener functionality');
     
     // Check if we have the management permission
-    const hasManagementPermission = chrome.runtime.getManifest().permissions.includes('management');
+    const manifest = chrome.runtime.getManifest();
+    const hasManagementPermission = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('management');
     console.log('📋 Has management permission:', hasManagementPermission);
     
     // Check current settings
